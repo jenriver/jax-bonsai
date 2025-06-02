@@ -49,7 +49,7 @@ pip install -r requirements.txt
 
 ### 4. Run a Model Example
 
-Navigate to a specific model's directory (e.g., `bonsai/models/qwen3`) and follow the instructions in its [`README.md`]() to run an example or notebook.
+Navigate to a specific model's directory (e.g., `bonsai/models/qwen3`) and follow the instructions in its [`README.md`](bonsai/models/qwen3/README.md) to run an example or notebook.
 
 ```bash
 cd bonsai/models/qwen3
