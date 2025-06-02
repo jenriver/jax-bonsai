@@ -22,7 +22,7 @@ To get started with JAX Bonsai, follow these steps to set up your development en
 First, clone the JAX Bonsai repository to your local machine:
 
 ```bash
-git clone [https://github.com/jenriver/jax-bonsai.git](https://github.com/jenriver/jax-bonsai.git)
+git clone https://github.com/jenriver/jax-bonsai.git
 cd jax-bonsai
 ```
 
@@ -55,3 +55,7 @@ Navigate to a specific model's directory (e.g., `bonsai/models/qwen3`) and follo
 cd bonsai/models/qwen3
 # Follow instructions in qwen3/README.md
 ```
+
+## Contributing
+
+We welcome contributions to JAX Bonsai! If you're interested in adding new models, improving existing implementations, or enhancing documentation, please refer to our [Contributing Guidelines](CONTRIBUTING.md).
