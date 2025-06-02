@@ -4,7 +4,7 @@ A collection of exemplary JAX models. This repository serves as a curated list o
 
 ## Current Models
 
-* To be added.
+* [Qwen 3](https://github.com/jenriver/jax-bonsai/tree/main/bonsai/models/qwen3)
 
 ## Getting Started
 
