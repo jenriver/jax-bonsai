@@ -32,27 +32,27 @@ Follow these steps to contribute code:
 1. Sign the [Google Contributor License Agreement (CLA)](https://cla.developers.google.com/).
    For more information, see the Pull Request Checklist below.
 
-2. Fork the JAX-bonsai repository by clicking the **Fork** button on the
-   [repository page](http://www.github.com/jiyounha/jax-bonsai). This creates
-   a copy of the JAX-bonsai repository in your own account.
+2. Fork the bonsai repository by clicking the **Fork** button on the
+   [repository page](http://www.github.com/jenriver/bonsai). This creates
+   a copy of the bonsai repository in your own account.
 
 3. `pip` installing your fork from source. This allows you to modify the code
    and immediately test it out:
 
    ```bash
-   git clone https://github.com/YOUR_USERNAME/jax-bonsai
-   cd jax-bonsai
+   git clone https://github.com/YOUR_USERNAME/bonsai
+   cd bonsai
    pip install -r build/test-requirements.txt  # Installs all testing requirements.
    ```
 
-4. Add the JAX-bonsai repo as an upstream remote, so you can use it to sync your
+4. Add the bonsai repo as an upstream remote, so you can use it to sync your
    changes.
 
    ```bash
-   git remote add upstream https://www.github.com/jiyounha/jax-bonsai
+   git remote add upstream https://www.github.com/jenriver/bonsai
    ```
 
-6. Create a branch where you will develop from:
+5. Create a branch where you will develop from:
 
    ```bash
    git checkout -b name-of-change
@@ -61,7 +61,7 @@ Follow these steps to contribute code:
    And implement your changes using your favorite editor (we recommend
    [Visual Studio Code](https://code.visualstudio.com/)).
 
-7. Once you are satisfied with your change, create a commit as follows (
+6. Once you are satisfied with your change, create a commit as follows (
    [how to write a commit message](https://chris.beams.io/posts/git-commit/)):
 
    ```bash
@@ -85,7 +85,7 @@ Follow these steps to contribute code:
 
    Please ensure your contribution is a single commit (see {ref}`single-change-commits`)
 
-10. Create a pull request from the JAX-bonsai repository and send it for review.
+7. Create a pull request from the bonsai repository and send it for review.
     Check the {ref}`pr-checklist` for considerations when preparing your PR, and
     consult [GitHub Help](https://help.github.com/articles/about-pull-requests/)
     if you need more information on using pull requests.

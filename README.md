@@ -8,7 +8,7 @@ We support integration with powerful post-training libraries such as [Tunix](htt
 
 ## Current Models
 
-* [Qwen 3](https://github.com/jenriver/jax-bonsai/tree/main/bonsai/models/qwen3)
+* [Qwen 3](https://github.com/jenriver/bonsai/tree/main/bonsai/models/qwen3)
 * (Coming soon) Llama 3
 * (Coming soon) Gemma 3
 * (Coming soon) SAM2
@@ -22,8 +22,8 @@ To get started with JAX Bonsai, follow these steps to set up your development en
 First, clone the JAX Bonsai repository to your local machine:
 
 ```bash
-git clone https://github.com/jenriver/jax-bonsai.git
-cd jax-bonsai
+git clone https://github.com/jenriver/bonsai.git
+cd bonsai
 ```
 
 ### 2. Create and Activate a Virtual Environment
