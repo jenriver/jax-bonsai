@@ -25,7 +25,7 @@ dependencies = [
 ]
 
 [project.urls]
-Source = "https://github.com/jenriver/jax-bonsai"
+Source = "https://github.com/jenriver/bonsai"
 
 [build-system]
 requires = ["setuptools >= 77.0.3"]
