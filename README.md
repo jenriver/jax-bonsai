@@ -10,7 +10,7 @@ We support integration with powerful post-training libraries such as [Tunix](htt
 
 * [Qwen 3](bonsai/models/qwen3/README.md)
 * [Llama 3](bonsai/models/llama3/README.md)
-* (Coming soon) Gemma 3
+* [Gemma 3](bonsai/models/gemma3/README.md)
 * (Coming soon) SAM2
 
 ## 🏁 Getting Started
