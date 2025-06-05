@@ -8,8 +8,8 @@ We support integration with powerful post-training libraries such as [Tunix](htt
 
 ## Current Models
 
-* [Qwen 3](https://github.com/jenriver/bonsai/tree/main/bonsai/models/qwen3)
-* (Coming soon) Llama 3
+* [Qwen 3](bonsai/models/qwen3/README.md)
+* [Llama 3](bonsai/models/llama3/README.md)
 * (Coming soon) Gemma 3
 * (Coming soon) SAM2
 
