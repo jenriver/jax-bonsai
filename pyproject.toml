@@ -22,6 +22,13 @@ dependencies = [
   "jax",
   "jaxlib",
   "flax",
+  "setuptools", # Added from requirements.txt
+  "ml-dtypes>=0.2.0", # Added from requirements.txt
+  "huggingface-hub", # Added from requirements.txt
+  "transformers", # Added from requirements.txt
+  "jinja2", # Added from requirements.txt
+  "tunix @ git+https://github.com/google/tunix", # Added from requirements.txt
+  "flax @ git+https://github.com/google/flax.git", # Added from requirements.txt (already present, but for explicit git ref)
 ]
 
 [project.urls]
@@ -47,7 +54,12 @@ select = [
   "RUF",  # Ruff-specific rules
 ]
 ignore = [
-  "E501",  # Example selection of rules
+  "E731",  # lambdas are allowed
+  "E501",  # don't check l gne lengths
+  "F401",  # allow unused imports
+  "E402",  # allow modules not at top of file
+  "E741",  # allow "l" as a variable name
+  "E703",  # allow semicolons (for jupyter notebooks)
   "RUF009",  # Do not perform function call in dataclass defaults
 ]
 
