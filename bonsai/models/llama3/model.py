@@ -16,14 +16,14 @@
 
 import dataclasses
 from typing import Tuple
+
 import flax
-from flax import nnx
 import jax
-from jax import numpy as jnp
-from jax.interpreters import pxla
 import jax.sharding as shd
 import jaxtyping
-
+from flax import nnx
+from jax import numpy as jnp
+from jax.interpreters import pxla
 
 K_MASK = -2.3819763e38
 

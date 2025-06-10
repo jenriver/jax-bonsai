@@ -15,10 +15,11 @@
 """Utils for loading and converting Qwen3 PT weights."""
 
 import re
-from etils import epath
-from flax import nnx
+
 import jax
 import safetensors.flax as safetensors
+from etils import epath
+from flax import nnx
 from tunix.models.qwen3 import model as model_lib
 
 

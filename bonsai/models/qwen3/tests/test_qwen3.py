@@ -8,8 +8,7 @@ from huggingface_hub import snapshot_download
 from transformers import AutoTokenizer
 
 from bonsai.generate import sampler
-from bonsai.models.qwen3 import model
-from bonsai.models.qwen3 import params
+from bonsai.models.qwen3 import model, params
 
 model_name = "Qwen/Qwen3-0.6B"
 

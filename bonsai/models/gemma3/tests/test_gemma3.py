@@ -2,10 +2,9 @@
 # python -m bonsai.models.gemma3.tests.test_gemma3
 
 
-from bonsai.models.gemma3 import model
-from bonsai.models.gemma3 import params
-
 import sentencepiece as spm
+
+from bonsai.models.gemma3 import model, params
 
 model_name = params.GEMMA3_1B_PT
 # model_name = "google/gemma-3-1b-pt"

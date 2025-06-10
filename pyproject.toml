@@ -39,8 +39,17 @@ target-version = "py39"
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E", "F", "W"]
-ignore = ["E501"] # Example selection of rules
+select = [
+  "E",  # Pycodestyle - Errors
+  "F",  # Pyflakes
+  "I",  # isort - consistent import orders and formatting
+  "W",  # Pycodestyle - Warnings
+  "RUF",  # Ruff-specific rules
+]
+ignore = [
+  "E501",  # Example selection of rules
+  "RUF009",  # Do not perform function call in dataclass defaults
+]
 
 [tool.ruff.format]
 quote-style = "double"

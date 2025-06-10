@@ -16,23 +16,21 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 import dataclasses
-from typing import Any
-from typing import Optional
+from collections.abc import Sequence
+from typing import Any, Optional
 
-from absl import logging
 import flax
-from flax import nnx
-from flax.nnx import filterlib
-from flax.nnx import graph
-from flax.nnx import statelib
 import jax
 import jax.numpy as jnp
 import jaxtyping
-from bonsai.generate import utils
+from absl import logging
+from flax import nnx
+from flax.nnx import filterlib, graph, statelib
+
 import bonsai.generate.beam_search as beam_search_lib
 import bonsai.generate.tokenizer_adapter as tok_adapter
+from bonsai.generate import utils
 
 LayerCache = dict[str, jaxtyping.Array]
 Cache = dict[str, LayerCache]
