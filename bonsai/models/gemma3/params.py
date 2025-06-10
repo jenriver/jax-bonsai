@@ -19,14 +19,15 @@ This provides a mapping from the upstream checkpoints[1] to our implementation.
 [1] https://github.com/google-deepmind/gemma
 """
 
-from etils import epath
 import flax
-from flax import nnx
 import jax
+import sentencepiece as spm
+from etils import epath
+from flax import nnx
 from jax import numpy as jnp
 from orbax import checkpoint as ocp
+
 from bonsai.models.gemma3 import model as model_lib
-import sentencepiece as spm
 
 # Pretrained
 GEMMA3_1B_PT = "gs://gemma-data/checkpoints/gemma3-1b-pt"

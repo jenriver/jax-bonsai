@@ -9,9 +9,7 @@ from huggingface_hub import snapshot_download
 from transformers import AutoTokenizer
 
 from bonsai.generate import sampler
-from bonsai.models.llama3 import model
-from bonsai.models.llama3 import params
-
+from bonsai.models.llama3 import model, params
 
 # model_name = "meta-llama/Llama-3.2-1B"
 # MODEL_CP_PATH = "/tmp/llama3.2-1b-weights" # Specify your desired download directory
