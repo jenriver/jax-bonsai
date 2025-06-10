@@ -4,9 +4,8 @@
 import os
 import time
 
-from flax import nnx
 from huggingface_hub import snapshot_download
-from transformers import AutoModelForCausalLM, AutoTokenizer, Qwen3ForCausalLM
+from transformers import AutoTokenizer
 
 from bonsai.generate import sampler
 from bonsai.models.qwen3 import model
@@ -14,7 +13,7 @@ from bonsai.models.qwen3 import params
 
 model_name = "Qwen/Qwen3-0.6B"
 
-MODEL_CP_PATH = "/tmp/qwen3-0.6b-weights" # Specify your desired download directory
+MODEL_CP_PATH = "/tmp/qwen3-0.6b-weights"  # Specify your desired download directory
 
 if os.path.isdir(MODEL_CP_PATH):
     print(f"'{MODEL_CP_PATH}' exists, skipping huggingface_hub pretrained weight download.")
@@ -27,6 +26,7 @@ config = model.ModelConfig.qwen3_0_6_b()  # pick correponding config based on mo
 qwen3 = params.create_model_from_safe_tensors(MODEL_CP_PATH, config)
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_CP_PATH)
+
 
 def templatize(prompts):
     out = []
@@ -44,6 +44,7 @@ def templatize(prompts):
         )
     return out
 
+
 inputs = templatize(
     [
         "which is larger 9.9 or 9.11?",
@@ -52,7 +53,9 @@ inputs = templatize(
     ]
 )
 
-sampler = sampler.Sampler(qwen3, tokenizer, sampler.CacheConfig(cache_size=256, num_layers=28, num_kv_heads=8, head_dim=128))
+sampler = sampler.Sampler(
+    qwen3, tokenizer, sampler.CacheConfig(cache_size=256, num_layers=28, num_kv_heads=8, head_dim=128)
+)
 
 # --- Benchmark Start ---
 start_time = time.perf_counter()
@@ -62,7 +65,7 @@ end_time = time.perf_counter()
 
 for t in out.text:
     print(t)
-    print('*' * 30)
+    print("*" * 30)
 
 # Print the benchmark result
 print(f"\nBenchmark: Text generation completed in {end_time - start_time:.4f} seconds.")

@@ -1,14 +1,8 @@
 # This file should be run as a module from the project root using:
 # python -m bonsai.models.gemma3.tests.test_gemma3
 
-import os
-import time
 
-from flax import nnx
-from huggingface_hub import snapshot_download
-from transformers import AutoTokenizer
 
-from bonsai.generate import sampler
 from bonsai.models.gemma3 import model
 from bonsai.models.gemma3 import params
 
@@ -19,7 +13,7 @@ model_name = params.GEMMA3_1B_PT
 
 # gsutil cp -r gs://gemma-data/checkpoints/gemma3-1b-pt /tmp/
 # gsutil cp -r gs://gemma-data/tokenizers/tokenizer_gemma3.model /tmp/
-MODEL_CP_PATH = "/tmp/gemma3-1b-pt" # Specify your desired download directory
+MODEL_CP_PATH = "/tmp/gemma3-1b-pt"  # Specify your desired download directory
 
 """
 if os.path.isdir(MODEL_CP_PATH):
@@ -38,10 +32,9 @@ gemma3 = params.create_model_from_checkpoint(MODEL_CP_PATH, config)
 tokenizer = params.create_tokenizer(params.GEMMA3_TOKENIZER)
 
 
-
 # 1. Load the trained SentencePiece model
 sp = spm.SentencePieceProcessor()
-sp.load('/tmp/tokenizer_gemma3.model')
+sp.load("/tmp/tokenizer_gemma3.model")
 # print(f"SentencePiece model loaded: {sp.model_path()}")
 
 # --- Simulate a simple language model ---
@@ -55,17 +48,16 @@ simulated_model_output_ids_for_test = sp.encode_as_ids(target_continuation_text)
 print(f"Simulated model's fixed output token IDs: {simulated_model_output_ids_for_test}")
 
 
-
 # --- Run the generation ---
 prompt = "Hello world"
 generated_output = params.generate_text_with_sentencepiece(
     prompt_text=prompt,
-    max_length=200, # Limit generation to a reasonable number of tokens
+    max_length=200,  # Limit generation to a reasonable number of tokens
     sp_model=sp,
     simulated_model=gemma3,
-    simulated_model_output_ids_for_test=simulated_model_output_ids_for_test
+    simulated_model_output_ids_for_test=simulated_model_output_ids_for_test,
 )
 
-print(f"\n--- Generation Complete ---")
+print("\n--- Generation Complete ---")
 print(f"Prompt: '{prompt}'")
 print(f"Generated Text: '{generated_output}'")

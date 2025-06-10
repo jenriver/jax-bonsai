@@ -25,23 +25,21 @@ from flax import nnx
 import jax
 from jax import numpy as jnp
 from orbax import checkpoint as ocp
-import re
-import safetensors.flax as safetensors
 from bonsai.models.gemma3 import model as model_lib
 import sentencepiece as spm
 
 # Pretrained
-GEMMA3_1B_PT = 'gs://gemma-data/checkpoints/gemma3-1b-pt'
-GEMMA3_4B_PT = 'gs://gemma-data/checkpoints/gemma3-4b-pt'
-GEMMA3_12B_PT = 'gs://gemma-data/checkpoints/gemma3-12b-pt'
-GEMMA3_27B_PT = 'gs://gemma-data/checkpoints/gemma3-27b-pt'
+GEMMA3_1B_PT = "gs://gemma-data/checkpoints/gemma3-1b-pt"
+GEMMA3_4B_PT = "gs://gemma-data/checkpoints/gemma3-4b-pt"
+GEMMA3_12B_PT = "gs://gemma-data/checkpoints/gemma3-12b-pt"
+GEMMA3_27B_PT = "gs://gemma-data/checkpoints/gemma3-27b-pt"
 # Instruction Tuned
-GEMMA3_1B_IT = 'gs://gemma-data/checkpoints/gemma3-1b-it'
-GEMMA3_4B_IT = 'gs://gemma-data/checkpoints/gemma3-4b-it'
-GEMMA3_12B_IT = 'gs://gemma-data/checkpoints/gemma3-12b-it'
-GEMMA3_27B_IT = 'gs://gemma-data/checkpoints/gemma3-27b-it'
+GEMMA3_1B_IT = "gs://gemma-data/checkpoints/gemma3-1b-it"
+GEMMA3_4B_IT = "gs://gemma-data/checkpoints/gemma3-4b-it"
+GEMMA3_12B_IT = "gs://gemma-data/checkpoints/gemma3-12b-it"
+GEMMA3_27B_IT = "gs://gemma-data/checkpoints/gemma3-27b-it"
 # Tokenizer
-GEMMA3_TOKENIZER = 'gs://gemma-data/tokenizers/tokenizer_gemma3.model'
+GEMMA3_TOKENIZER = "gs://gemma-data/tokenizers/tokenizer_gemma3.model"
 
 
 def create_model_from_checkpoint(
@@ -49,22 +47,20 @@ def create_model_from_checkpoint(
     model_config: model_lib.ModelConfig,
     mesh: jax.sharding.Mesh | None = None,
 ) -> model_lib.Gemma3:
-  """Load a Gemma3 model from a checkpoint."""
-  abs_model = nnx.eval_shape(
-      lambda: model_lib.Gemma3(model_config, rngs=nnx.Rngs(0))
-  )
-  params = ocp.StandardCheckpointer().restore(checkpoint_path)
-  params = _map_from_upstream_checkpoint(params)
-  if mesh is not None:
-    params = jax.tree.map(
-        lambda x, shd: jnp.asarray(x, device=shd),
-        params,
-        nnx.to_pure_dict(nnx.get_named_sharding(nnx.state(abs_model), mesh)),
-    )
-  else:
-    params = jax.tree.map(jnp.asarray, params)
-  nnx.update(abs_model, params)
-  return abs_model
+    """Load a Gemma3 model from a checkpoint."""
+    abs_model = nnx.eval_shape(lambda: model_lib.Gemma3(model_config, rngs=nnx.Rngs(0)))
+    params = ocp.StandardCheckpointer().restore(checkpoint_path)
+    params = _map_from_upstream_checkpoint(params)
+    if mesh is not None:
+        params = jax.tree.map(
+            lambda x, shd: jnp.asarray(x, device=shd),
+            params,
+            nnx.to_pure_dict(nnx.get_named_sharding(nnx.state(abs_model), mesh)),
+        )
+    else:
+        params = jax.tree.map(jnp.asarray, params)
+    nnx.update(abs_model, params)
+    return abs_model
 
 
 PROMPT_TEMPLATE = """\
@@ -77,74 +73,73 @@ PROMPT_TEMPLATE = """\
 def create_tokenizer(
     path: str = GEMMA3_TOKENIZER,
 ) -> spm.SentencePieceProcessor:
-  spm_processor = spm.SentencePieceProcessor()
-  model_proto = epath.Path(path).read_bytes()
-  spm_processor.LoadFromSerializedProto(model_proto)
-  return spm_processor
+    spm_processor = spm.SentencePieceProcessor()
+    model_proto = epath.Path(path).read_bytes()
+    spm_processor.LoadFromSerializedProto(model_proto)
+    return spm_processor
 
 
 def _map_from_upstream_checkpoint(params):
-  """Map from upstream checkpoint to our implementation."""
-  # From:
-  #
-  # ('transformer/embedder', 'input_embedding') (262144, 1152)
-  # ('transformer/final_norm', 'scale') (1152,)
-  # ('transformer/layer_0/attn/_key_norm', 'scale') (256,)
-  # ('transformer/layer_0/attn/_query_norm', 'scale') (256,)
-  # ('transformer/layer_0/attn/attn_vec_einsum', 'w') (4, 256, 1152)
-  # ('transformer/layer_0/attn/kv_einsum', 'w') (2, 1, 1152, 256)
-  # ('transformer/layer_0/attn/q_einsum', 'w') (4, 1152, 256)
-  # ('transformer/layer_0/mlp/gating_einsum', 'w') (2, 6912, 1152)
-  # ('transformer/layer_0/mlp/linear', 'w') (6912, 1152)
-  # ('transformer/layer_0/post_attention_norm', 'scale') (1152,)
-  # ('transformer/layer_0/post_ffw_norm', 'scale') (1152,)
-  # ('transformer/layer_0/pre_attention_norm', 'scale') (1152,)
-  # ('transformer/layer_0/pre_ffw_norm', 'scale') (1152,)
-  #
-  # To:
-  #
-  # ('embedder', 'input_embedding') (262144, 1152)
-  # ('final_norm', 'scale') (1152,)
-  # ('layers', 0, 'attn', '_key_norm', 'scale') (256,)
-  # ('layers', 0, 'attn', '_query_norm', 'scale') (256,)
-  # ('layers', 0, 'attn', 'attn_vec_einsum', 'w') (4, 256, 1152)
-  # ('layers', 0, 'attn', 'kv_einsum', 'w') (2, 1, 1152, 256)
-  # ('layers', 0, 'attn', 'q_einsum', 'w') (4, 1152, 256)
-  # ('layers', 0, 'mlp', 'down_proj', 'kernel') (6912, 1152)
-  # ('layers', 0, 'mlp', 'gate_proj', 'kernel') (1152, 6912)
-  # ('layers', 0, 'mlp', 'up_proj', 'kernel') (1152, 6912)
-  # ('layers', 0, 'post_attn_norm', 'scale') (1152,)
-  # ('layers', 0, 'post_ffw_norm', 'scale') (1152,)
-  # ('layers', 0, 'pre_attention_norm', 'scale') (1152,)
-  # ('layers', 0, 'pre_ffw_norm', 'scale') (1152,)
-  new_params = {}
-  for key_path, value in flax.traverse_util.flatten_dict(params).items():
-    module_path, param_name = key_path
-    module_path = module_path.split('/')[1:]  # Remove the leading 'transformer'
-    if module_path[0] == 'siglip_encoder':
-      continue  # We don't support MM input yet.
-    if module_path[0] == 'embedder':
-      if len(module_path) > 1 and module_path[1].startswith('mm_'):
-        continue  # We don't support MM input yet.
-    if module_path[0] in ('embedder', 'final_norm'):
-      new_params[(module_path[0], param_name)] = value
-      continue
-    # module_path should now look like ('layer_0', 'attn', '_key_norm')
-    layer_idx = ('layers', int(module_path[0].removeprefix('layer_')))
-    if module_path[1:] == ['mlp', 'gating_einsum']:
-      new_params[(*layer_idx, 'mlp', 'gate_proj', 'kernel')] = value[0].T
-      new_params[(*layer_idx, 'mlp', 'up_proj', 'kernel')] = value[1].T
-    elif module_path[1:] == ['mlp', 'linear']:
-      new_params[(*layer_idx, 'mlp', 'down_proj', 'kernel')] = value
-    else:
-      new_params[(*layer_idx, *module_path[1:], param_name)] = value
-  return flax.traverse_util.unflatten_dict(new_params)
+    """Map from upstream checkpoint to our implementation."""
+    # From:
+    #
+    # ('transformer/embedder', 'input_embedding') (262144, 1152)
+    # ('transformer/final_norm', 'scale') (1152,)
+    # ('transformer/layer_0/attn/_key_norm', 'scale') (256,)
+    # ('transformer/layer_0/attn/_query_norm', 'scale') (256,)
+    # ('transformer/layer_0/attn/attn_vec_einsum', 'w') (4, 256, 1152)
+    # ('transformer/layer_0/attn/kv_einsum', 'w') (2, 1, 1152, 256)
+    # ('transformer/layer_0/attn/q_einsum', 'w') (4, 1152, 256)
+    # ('transformer/layer_0/mlp/gating_einsum', 'w') (2, 6912, 1152)
+    # ('transformer/layer_0/mlp/linear', 'w') (6912, 1152)
+    # ('transformer/layer_0/post_attention_norm', 'scale') (1152,)
+    # ('transformer/layer_0/post_ffw_norm', 'scale') (1152,)
+    # ('transformer/layer_0/pre_attention_norm', 'scale') (1152,)
+    # ('transformer/layer_0/pre_ffw_norm', 'scale') (1152,)
+    #
+    # To:
+    #
+    # ('embedder', 'input_embedding') (262144, 1152)
+    # ('final_norm', 'scale') (1152,)
+    # ('layers', 0, 'attn', '_key_norm', 'scale') (256,)
+    # ('layers', 0, 'attn', '_query_norm', 'scale') (256,)
+    # ('layers', 0, 'attn', 'attn_vec_einsum', 'w') (4, 256, 1152)
+    # ('layers', 0, 'attn', 'kv_einsum', 'w') (2, 1, 1152, 256)
+    # ('layers', 0, 'attn', 'q_einsum', 'w') (4, 1152, 256)
+    # ('layers', 0, 'mlp', 'down_proj', 'kernel') (6912, 1152)
+    # ('layers', 0, 'mlp', 'gate_proj', 'kernel') (1152, 6912)
+    # ('layers', 0, 'mlp', 'up_proj', 'kernel') (1152, 6912)
+    # ('layers', 0, 'post_attn_norm', 'scale') (1152,)
+    # ('layers', 0, 'post_ffw_norm', 'scale') (1152,)
+    # ('layers', 0, 'pre_attention_norm', 'scale') (1152,)
+    # ('layers', 0, 'pre_ffw_norm', 'scale') (1152,)
+    new_params = {}
+    for key_path, value in flax.traverse_util.flatten_dict(params).items():
+        module_path, param_name = key_path
+        module_path = module_path.split("/")[1:]  # Remove the leading 'transformer'
+        if module_path[0] == "siglip_encoder":
+            continue  # We don't support MM input yet.
+        if module_path[0] == "embedder":
+            if len(module_path) > 1 and module_path[1].startswith("mm_"):
+                continue  # We don't support MM input yet.
+        if module_path[0] in ("embedder", "final_norm"):
+            new_params[(module_path[0], param_name)] = value
+            continue
+        # module_path should now look like ('layer_0', 'attn', '_key_norm')
+        layer_idx = ("layers", int(module_path[0].removeprefix("layer_")))
+        if module_path[1:] == ["mlp", "gating_einsum"]:
+            new_params[(*layer_idx, "mlp", "gate_proj", "kernel")] = value[0].T
+            new_params[(*layer_idx, "mlp", "up_proj", "kernel")] = value[1].T
+        elif module_path[1:] == ["mlp", "linear"]:
+            new_params[(*layer_idx, "mlp", "down_proj", "kernel")] = value
+        else:
+            new_params[(*layer_idx, *module_path[1:], param_name)] = value
+    return flax.traverse_util.unflatten_dict(new_params)
 
 
-
-
-
-def generate_text_with_sentencepiece(prompt_text, max_length=50, sp_model=None, simulated_model=None, simulated_model_output_ids_for_test=None):
+def generate_text_with_sentencepiece(
+    prompt_text, max_length=50, sp_model=None, simulated_model=None, simulated_model_output_ids_for_test=None
+):
     """
     Generates text using a prompt, a SentencePiece model for tokenization,
     and a simulated language model.
@@ -168,7 +163,7 @@ def generate_text_with_sentencepiece(prompt_text, max_length=50, sp_model=None, 
     input_ids = sp_model.encode_as_ids(prompt_text)
     print(f"\nPrompt '{prompt_text}' encoded to IDs: {input_ids}")
 
-    generated_ids = list(input_ids) # Start with the prompt IDs
+    generated_ids = list(input_ids)  # Start with the prompt IDs
 
     # Simulate token generation
     for _ in range(max_length):

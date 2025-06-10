@@ -5,7 +5,6 @@ import os
 import sys
 import time
 
-from flax import nnx
 from huggingface_hub import snapshot_download
 from transformers import AutoTokenizer
 
@@ -43,8 +42,10 @@ else:
     try:
         snapshot_download(repo_id=model_name, local_dir=MODEL_CP_PATH)
         print(f"Model weights and files downloaded to: {MODEL_CP_PATH}")
-    except Exception as e:
-        print(f"Please request Llama-3.2-1B via https://huggingface.co/meta-llama/Llama-3.2-1B and run `huggingface-cli login`.")
+    except Exception:
+        print(
+            "Please request Llama-3.2-1B via https://huggingface.co/meta-llama/Llama-3.2-1B and run `huggingface-cli login`."
+        )
 
 # config = model.ModelConfig.llama3_2_1b()  # pick correponding config based on model version
 # config = model.ModelConfig.llama3_8b()  # pick correponding config based on model version
@@ -55,6 +56,7 @@ llama3 = params.create_model_from_safe_tensors(MODEL_CP_PATH, config)
 sys.exit("Error message")
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_CP_PATH)
+
 
 def templatize(prompts):
     out = []
@@ -72,6 +74,7 @@ def templatize(prompts):
         )
     return out
 
+
 inputs = templatize(
     [
         "which is larger 9.9 or 9.11?",
@@ -80,7 +83,9 @@ inputs = templatize(
     ]
 )
 
-sampler = sampler.Sampler(llama3, tokenizer, sampler.CacheConfig(cache_size=256, num_layers=28, num_kv_heads=8, head_dim=128))
+sampler = sampler.Sampler(
+    llama3, tokenizer, sampler.CacheConfig(cache_size=256, num_layers=28, num_kv_heads=8, head_dim=128)
+)
 
 # --- Benchmark Start ---
 start_time = time.perf_counter()
@@ -90,7 +95,7 @@ end_time = time.perf_counter()
 
 for t in out.text:
     print(t)
-    print('*' * 30)
+    print("*" * 30)
 
 # Print the benchmark result
 print(f"\nBenchmark: Text generation completed in {end_time - start_time:.4f} seconds.")

@@ -33,3 +33,15 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["bonsai*"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"] # Example selection of rules
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
