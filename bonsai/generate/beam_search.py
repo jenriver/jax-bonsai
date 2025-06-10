@@ -157,9 +157,7 @@ def beam_search_step(
     ext_next_token_indices = top_k_flat_indices % vocab_size
 
     done_source_beam_indices = top_k_flat_indices - (candidate_scores_per_item.shape[-1])
-    done_next_token_indices = jnp.full(
-        (batch_size, beam_size), pad_token_id, dtype=jnp.int32
-    )  # Use PAD as placeholder
+    done_next_token_indices = jnp.full((batch_size, beam_size), pad_token_id, dtype=jnp.int32)  # Use PAD as placeholder
 
     source_beam_indices = jnp.where(is_extension_candidate, ext_source_beam_indices, done_source_beam_indices)
 

@@ -2,7 +2,6 @@
 # python -m bonsai.models.gemma3.tests.test_gemma3
 
 
-
 from bonsai.models.gemma3 import model
 from bonsai.models.gemma3 import params
 
