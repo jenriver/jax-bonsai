@@ -17,45 +17,43 @@ We support integration with powerful post-training libraries such as [Tunix](htt
 
 To get started with JAX Bonsai, follow these steps to set up your development environment and run the models.
 
-### 1. Clone the Repository
+### Installation
 
-First, clone the JAX Bonsai repository to your local machine:
+Clone the JAX Bonsai repository to your local machine.
 
 ```bash
 git clone https://github.com/jenriver/bonsai.git
 cd bonsai
 ```
 
-### 2. Create and Activate a Virtual Environment
-
-It is highly recommended to use a virtual environment to manage project dependencies. You can use either `venv` (built-in with Python) or `uv` (a fast Python package installer and dependency manager).
-
+Install the latest repository.
 ```bash
-# venv
-python3 -m venv venv
-source venv/bin/activate  # On macOS/Linux
-# uv (for faster dependency resolution and installation)
-uv venv venv
-source venv/bin/activate  # On macOS/Linux
+pip install -e .
 ```
 
-### 3. Install Dependencies
+### Running models
 
-Once your virtual environment is activated, install the necessary Python packages using `pip`:
+Bonsai models can be imported and used like the following:
 
-```bash
-pip install -r requirements.txt
+```
+from flax import nnx
+from bonsai.models.qwen3 import model, params
+
+MODEL_CP_PATH = $YOUR_CKPT
+
+config = model.ModelConfig.qwen3_0_6_b()
+qwen3 = params.create_model_from_safe_tensors(MODEL_CP_PATH, config)
 ```
 
-### 4. Run a Model Example
+Try out our [colab](https://colab.sandbox.google.com/github/jenriver/bonsai/blob/qwen3/bonsai/models/qwen3/qwen3_example.ipynb) on running a Qwen3 generate.
 
-Navigate to a specific model's directory (e.g., `bonsai/models/qwen3`) and follow the instructions in its [`README.md`](bonsai/models/qwen3/README.md) to run an example or notebook.
-
-```bash
-cd bonsai/models/qwen3
-# Follow instructions in qwen3/README.md
+You can also run the following to benchmark and see generate results from a Qwen3 model.
+```python
+python -m bonsai.models.qwen3.tests.test_qwen3
 ```
+
 
 ## Contributing
 
-We welcome contributions to JAX Bonsai! If you're interested in adding new models, improving existing implementations, or enhancing documentation, please refer to our [Contributing Guidelines](CONTRIBUTING.md).
+We welcome contributions!
+If you're interested in adding new models, improving existing implementations, or enhancing documentation, please see our [Contributing Guidelines](CONTRIBUTING.md).
