@@ -1,10 +1,12 @@
+# Bonsai🌳
 
-<h1 align="center">🌳JAX Bonsai, a curation of SoTA models in JAX🌳</h1>
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+A collection of State-of-the-Art models implemented using JAX [NNX](https://flax.readthedocs.io/en/v0.8.3/experimental/nnx/index.html). This repository serves as a curated list of well-documented and easy-to-understand JAX implementations of common machine learning models.
 
 
-A collection of exemplary JAX models using JAX's [NNX](https://flax.readthedocs.io/en/v0.8.3/experimental/nnx/index.html). This repository serves as a curated list of well-documented and easy-to-understand JAX implementations of common machine learning models.
-
-We support integration with powerful post-training libraries such as [Tunix](https://github.com/google/tunix/tree/main).
+Bonsai supports integration with powerful JAX libraries.
+* [Tunix](https://github.com/google/tunix/tree/main), a post-training library supporting Supervised Fine-Tuning, RL, Knoweldge Distillation.
 
 ## Current Models
 
@@ -45,7 +47,7 @@ config = model.ModelConfig.qwen3_0_6_b()
 qwen3 = params.create_model_from_safe_tensors(MODEL_CP_PATH, config)
 ```
 
-Try out our [colab](https://colab.sandbox.google.com/github/jenriver/bonsai/blob/qwen3/bonsai/models/qwen3/qwen3_example.ipynb) on running a Qwen3 generate.
+Jump right into our [Colab notebook](https://colab.sandbox.google.com/github/jenriver/bonsai/blob/qwen3/bonsai/models/qwen3/qwen3_example.ipynb) to see Qwen3 in action.
 
 You can also run the following to benchmark and see generate results from a Qwen3 model.
 ```python
@@ -57,3 +59,7 @@ python -m bonsai.models.qwen3.tests.test_qwen3
 
 We welcome contributions!
 If you're interested in adding new models, improving existing implementations, or enhancing documentation, please see our [Contributing Guidelines](CONTRIBUTING.md).
+
+## Useful Links
+* [JAX](https://docs.jax.dev/en/latest/quickstart.html): Learn more about JAX, a super fast NumPy-based ML framework with automatic differentiation.
+* [The JAX ecosystem](https://docs.jaxstack.ai/en/latest/getting_started.html): Unlock unparalleled speed and scale for your next-generation models. Explore an incredible suite of tools and libraries that effortlessly extend JAX's capabilities, transforming how you build, train, and deploy.
