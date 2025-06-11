@@ -56,6 +56,8 @@ sampler = sampler.Sampler(
     qwen3, tokenizer, sampler.CacheConfig(cache_size=256, num_layers=28, num_kv_heads=8, head_dim=128)
 )
 
+# Help precompile
+out = sampler(inputs, total_generation_steps=128, echo=True)
 # --- Benchmark Start ---
 start_time = time.perf_counter()
 out = sampler(inputs, total_generation_steps=128, echo=True)

@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 from collections.abc import Sequence
 from typing import Any, Optional
 
@@ -24,7 +25,6 @@ import flax
 import jax
 import jax.numpy as jnp
 import jaxtyping
-from absl import logging
 from flax import nnx
 from flax.nnx import filterlib, graph, statelib
 
@@ -623,7 +623,9 @@ class Sampler:
         )
         total_sampling_steps = max_prompt_length + total_generation_steps
         if total_sampling_steps > self.cache_config.cache_size:
-            raise ValueError(f"Total sampling steps must be less than the cache size {self.cache_config.cache_size}.")
+            raise ValueError(
+                f"Total sampling steps {total_sampling_steps} must be less than the cache size {self.cache_config.cache_size}."
+            )
 
         if seed is None:
             seed = jax.random.PRNGKey(0)
