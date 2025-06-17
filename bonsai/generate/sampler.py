@@ -19,7 +19,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 from collections.abc import Sequence
-from typing import Any, Optional
+from typing import Any
 
 import flax
 import jax
@@ -82,7 +82,7 @@ class _SamplingState:
     sampling_parameters: dict[str, float | int] = flax.struct.field(pytree_node=False)
 
     # Only present when sampling_mode is "beam_search".
-    beam_search_sampling_state: beam_search_lib._BeamSearchSamplingState | None = None
+    beam_search_sampling_state: beam_search_lib.BeamSearchSamplingState | None = None
 
 
 @dataclasses.dataclass
@@ -112,7 +112,7 @@ class CacheConfig:
     head_dim: int
 
 
-def _sample_top_p(probs: jnp.ndarray, p: float, key: jax.Array, k: Optional[int] = None) -> jnp.ndarray:
+def _sample_top_p(probs: jnp.ndarray, p: float, key: jax.Array, k: int | None = None) -> jnp.ndarray:
     """Sample a token using top-p sampling."""
     k = probs.shape[-1] if k is None else k
     probs_sorted, indices = jax.lax.top_k(probs, k=k)
@@ -128,7 +128,7 @@ def _sample_top_p(probs: jnp.ndarray, p: float, key: jax.Array, k: Optional[int]
     return next_token
 
 
-def sample_top_p(logits, key, temperature: float, top_p: float, top_k: Optional[int]):
+def sample_top_p(logits, key, temperature: float, top_p: float, top_k: int | None):
     probs = jax.nn.softmax(logits[:, -1] / temperature, axis=-1)
     next_token = _sample_top_p(probs, top_p, key, top_k)
     return next_token
@@ -270,10 +270,10 @@ class Sampler:
         include_logits: bool,
         forbidden_token_ids: Sequence[int] | None,
         temperature: float,
-        top_p: Optional[float],
-        top_k: Optional[int],
+        top_p: float | None,
+        top_k: int | None,
         seed: jax.Array,
-        beam_size: Optional[int],
+        beam_size: int | None,
     ) -> _SamplingState:
         """Initializes the sampling state given input prompts."""
         batch_size = all_input_ids.shape[0]
@@ -566,9 +566,9 @@ class Sampler:
         return_logits: bool = False,
         forbidden_tokens: Sequence[str] | None = None,
         temperature: float = 0.0,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        beam_size: Optional[int] = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        beam_size: int | None = None,
         seed: jax.Array | None = None,
     ) -> SamplerOutput:
         """Samples a completion of the input string.

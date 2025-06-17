@@ -24,7 +24,7 @@ import jaxtyping
 
 
 @flax.struct.dataclass
-class _BeamSearchSamplingState:
+class BeamSearchSamplingState:
     """The state used by beam search.
 
     This is intented to be included by the main sampling state.
@@ -44,7 +44,7 @@ def init_batched_beam_state(
     positions: jax.Array,
     logits_buffer: jax.Array | None,
     beam_size: int,
-) -> tuple[_BeamSearchSamplingState, dict[str, Any]]:
+) -> tuple[BeamSearchSamplingState, dict[str, Any]]:
     """Intializes the beam search sampling state.
 
     In order to support beam search, we need to expand the input other states to
@@ -67,7 +67,7 @@ def init_batched_beam_state(
 
     caches = jax.tree.map(lambda x: jnp.repeat(x, beam_size, axis=0), initial_cache)
 
-    return _BeamSearchSamplingState(
+    return BeamSearchSamplingState(
         scores=jnp.zeros((batch_size, beam_size), dtype=jnp.float32),
         initialized=False,
     ), {
@@ -86,10 +86,10 @@ def beam_search_step(
     token_buffer: jax.Array,
     cache: dict[str, dict[str, jaxtyping.Array]],
     logits_buffer: jax.Array | None,
-    state: _BeamSearchSamplingState,
+    state: BeamSearchSamplingState,
     pad_token_id: int,
     decoding_step: int,
-) -> tuple[_BeamSearchSamplingState, dict[str, Any]]:
+) -> tuple[BeamSearchSamplingState, dict[str, Any]]:
     """Beam search step.
 
     In beam search, at each step, we generate possible next tokens for each of
@@ -194,7 +194,7 @@ def beam_search_step(
         next_token_indices.reshape(batch_size * beam_size)
     )
 
-    return _BeamSearchSamplingState(
+    return BeamSearchSamplingState(
         scores=new_scores,
         initialized=True,
     ), {
@@ -206,7 +206,7 @@ def beam_search_step(
 
 
 def finalize_beam_search_state(
-    beam_search_state: _BeamSearchSamplingState,
+    beam_search_state: BeamSearchSamplingState,
     token_buffer: jax.Array,
     logits_buffer: jax.Array | None,
 ) -> dict[str, Any]:
