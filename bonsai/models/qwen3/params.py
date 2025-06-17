@@ -20,7 +20,7 @@ import jax
 import safetensors.flax as safetensors
 from etils import epath
 from flax import nnx
-from tunix.models.qwen3 import model as model_lib
+from bonsai.models.qwen3 import model as model_lib
 
 
 def _get_key_and_transform_mapping(cfg: model_lib.ModelConfig):
