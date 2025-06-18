@@ -20,6 +20,7 @@ import jax
 import safetensors.flax as safetensors
 from etils import epath
 from flax import nnx
+
 from bonsai.models.qwen3 import model as model_lib
 
 

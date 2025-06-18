@@ -75,13 +75,14 @@ def test_model_generation(model_name: str, local_cache_path: Path = '/tmp/models
         # Initialize the Sampler
         # CacheConfig parameters often depend on specific model architecture details
         # (e.g., number of layers, KV heads, head dimension).
-        sampler_instance = sampler.Sampler(
-            model,
+        model_sampler = sampler.Sampler(
             tokenizer,
-            sampler.CacheConfig(cache_size=256, num_layers=28, num_kv_heads=8, head_dim=128)
+            sampler.CacheConfig(cache_size=256, num_layers=28, num_kv_heads=8, head_dim=128),
+            temperature = 0.7,
+            top_p = 0.9,
         )
 
-        generated_output = sampler_instance(input_prompts, total_generation_steps=128, echo=True)
+        generated_output = model_sampler(model, input_prompts, total_generation_steps=128, echo=True)
         if show_output:
             print("\n--- Generated Outputs ---")
             for t in generated_output.text:
@@ -95,15 +96,15 @@ def test_model_generation(model_name: str, local_cache_path: Path = '/tmp/models
             return "⛔️ Not supported (Consider creating an issue)"
 
     except Exception as e:
-        print(f"Test Failed: An error occurred during inference for {model_name}.")
-        return "⛔️ Not supported (Consider creating an issue)"
-    
+        print(f"Test Failed: An error occurred during inference for {model_name}: {e}.")
+        return "⛔️ Not supported (Consider fixing or creating an issue)"
+
 
 if __name__ == "__main__":
     # --- Example Usage ---
     # Choose the Qwen3 model you want to test.
     # Ensure its configuration is present and accurate in the `MODEL_CONFIGS` dictionary.
-    model_to_test = "Qwen/Qwen3-1.7B" # Change this to "Qwen/Qwen3-1.7B", "Qwen/Qwen3-14B", etc.
+    model_to_test = "Qwen/Qwen3-0.6B" # Change this to "Qwen/Qwen3-1.7B", "Qwen/Qwen3-14B", etc.
 
-    result = test_model_generation(model_to_test)
+    result = test_model_generation(model_to_test, show_output=True)
     print(f"\nOverall Test Result for {model_to_test}: {result}")

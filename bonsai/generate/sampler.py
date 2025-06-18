@@ -178,30 +178,56 @@ class Sampler:
 
     def __init__(
         self,
-        transformer: nnx.Module,
         tokenizer: Any,
         cache_config: CacheConfig,
+        temperature: float = 0.0,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        beam_size: int | None = None,
+        seed: jax.Array | None = None,
+        forbidden_tokens: Sequence[str] | None = None,
     ):
         """Initializes the sampler.
 
+
+        If top_p is provided, the sampling mode will be top_p.
+        If beam_size is provided, the sampling mode will be beam_search.
+        If None of them are provided, the sampling mode will be greedy.
+
         Args:
-          transformer: an instance of the transformer.
           tokenizer: a tokenizer for the given model.
           cache_config: configuration for the KV cache.
+          temperature: temperature for sampling.
+          top_p: top-p sampling threshold.
+          top_k: top-k sampling threshold.
+          beam_size: beam size for beam search.
+          seed: random seed for sampling.
+          forbidden_tokens: list of tokens that are forbidden to be generated. Each
+            token must map to a single token id in the vocab.
         """
         self.tokenizer = tok_adapter.TokenizerAdapter(tokenizer)
         self.cache_config = cache_config
-        self._transformer_graphdef: graph.NodeDef = nnx.graphdef(transformer)
-        self._transformer_state: list[statelib.State] = nnx.variables(transformer)
-        self._flattened_transformer_state: list[statelib.State] = jax.tree.leaves(
-            self._transformer_state,
-            is_leaf=lambda x: isinstance(x, nnx.Variable),
-        )
         # we separate out state and graph def so that the state can be passed as an
         # argument to _decode_fn, resulting in it not being treated as a static
         # arg. This greatly reduces the size of the HLO and reduces compile time
         self._compiled_decode_fn = jax.jit(self._decode_fn)
         self._compiled_prefill_fn = jax.jit(self._prefill_fn)
+
+        self.temperature = temperature
+        self.top_p = top_p
+        self.top_k = top_k
+        self.beam_size = beam_size
+        self.seed = seed if seed is not None else jax.random.PRNGKey(0)
+
+        self.forbidden_token_ids = None
+        if forbidden_tokens is not None:
+            self.forbidden_token_ids = []
+            for token in forbidden_tokens:
+                token_id = self.tokenizer.encode(token)
+                if len(token_id) != 1:
+                    raise ValueError("Forbidden tokens must map to single token ids in the vocab.")
+                self.forbidden_token_ids.extend(token_id)
+            self.forbidden_token_ids = tuple(self.forbidden_token_ids)
 
     @property
     def transformer(self) -> nnx.Module:
@@ -268,12 +294,6 @@ class Sampler:
         all_input_ids: jax.Array,
         total_sampling_steps: int,
         include_logits: bool,
-        forbidden_token_ids: Sequence[int] | None,
-        temperature: float,
-        top_p: float | None,
-        top_k: int | None,
-        seed: jax.Array,
-        beam_size: int | None,
     ) -> _SamplingState:
         """Initializes the sampling state given input prompts."""
         batch_size = all_input_ids.shape[0]
@@ -314,14 +334,14 @@ class Sampler:
         sampling_parameters = {}
         sampling_mode = [None]
 
-        if beam_size is not None:
+        if self.beam_size is not None:
             utils.check_sampling_mode_conflict(sampling_mode, "beam_search")
-            sampling_parameters["beam_size"] = beam_size
+            sampling_parameters["beam_size"] = self.beam_size
 
-        if top_p is not None:
+        if self.top_p is not None:
             utils.check_sampling_mode_conflict(sampling_mode, "top_p")
-            sampling_parameters["top_p"] = top_p
-            sampling_parameters["top_k"] = top_k
+            sampling_parameters["top_p"] = self.top_p
+            sampling_parameters["top_k"] = self.top_k
 
         if sampling_mode[0] is None:
             sampling_mode[0] = "greedy"
@@ -337,10 +357,10 @@ class Sampler:
             cache=cache,
             done=done,
             total_sampling_steps=total_sampling_steps,
-            forbidden_token_ids=forbidden_token_ids,
-            temperature=temperature,
+            forbidden_token_ids=self.forbidden_token_ids,
+            temperature=self.temperature,
             sampling_parameters=sampling_parameters,
-            seed=seed,
+            seed=self.seed,
             sampling_mode=sampling_mode[0],
             beam_search_sampling_state=None,
         )
@@ -393,9 +413,9 @@ class Sampler:
                 next_token_candidate = sample_top_p(
                     logits,
                     key,
-                    sampler_state.temperature,
-                    sampler_state.sampling_parameters["top_p"],
-                    sampler_state.sampling_parameters["top_k"],
+                    self.temperature,
+                    self.top_p,
+                    self.top_k,
                 )
             else:
                 raise ValueError("Unsupported sampling mode: %s" % sampler_state.sampling_mode)
@@ -559,25 +579,17 @@ class Sampler:
 
     def __call__(
         self,
+        transformer: nnx.Module,
         input_strings: Sequence[str],
         total_generation_steps: int,
         max_prompt_length: int | None = None,
         echo: bool = False,
         return_logits: bool = False,
-        forbidden_tokens: Sequence[str] | None = None,
-        temperature: float = 0.0,
-        top_p: float | None = None,
-        top_k: int | None = None,
-        beam_size: int | None = None,
-        seed: jax.Array | None = None,
     ) -> SamplerOutput:
         """Samples a completion of the input string.
 
-        If top_p is provided, the sampling mode will be top_p.
-        If beam_size is provided, the sampling mode will be beam_search.
-        If None of them are provided, the sampling mode will be greedy.
-
         Args:
+          transformer: an instance of the transformer.
           input_strings: input prompts to feed to the model for sampling.
           total_generation_steps: number of generation steps. will correspond to the
             longest prompt in the batch.
@@ -585,26 +597,16 @@ class Sampler:
             recompilation on different prompt lengths.
           echo: whgether to return the prompt as part of the output sample.
           return_logits: whether to return per-step logits used during generation.
-          forbidden_tokens: list of tokens that are forbidden to be generated. Each
-            token must map to a single token id in the vocab.
-          temperature: temperature for sampling.
-          top_p: top-p sampling threshold.
-          top_k: top-k sampling threshold.
-          beam_size: beam size for beam search.
-          seed: random seed for sampling.
 
         Returns:
           sampler_output: A SamplerOutput object containing the generated samples.
         """
-        forbidden_token_ids = None
-        if forbidden_tokens is not None:
-            forbidden_token_ids = []
-            for token in forbidden_tokens:
-                token_id = self.tokenizer.encode(token)
-                if len(token_id) != 1:
-                    raise ValueError("Forbidden tokens must map to single token ids in the vocab.")
-                forbidden_token_ids.extend(token_id)
-            forbidden_token_ids = tuple(forbidden_token_ids)
+        self._transformer_graphdef: graph.NodeDef = nnx.graphdef(transformer)
+        self._transformer_state: list[statelib.State] = nnx.variables(transformer)
+        self._flattened_transformer_state: list[statelib.State] = jax.tree.leaves(
+            self._transformer_state,
+            is_leaf=lambda x: isinstance(x, nnx.Variable),
+        )
 
         tokens = [self.tokenize(x) for x in input_strings]
         max_tokens_length = max(len(x) for x in tokens)
@@ -627,18 +629,10 @@ class Sampler:
                 f"Total sampling steps {total_sampling_steps} must be less than the cache size {self.cache_config.cache_size}."
             )
 
-        if seed is None:
-            seed = jax.random.PRNGKey(0)
         sampling_state = self.init_sample_state(
             all_input_ids,
             include_logits=return_logits,
             total_sampling_steps=total_sampling_steps,
-            forbidden_token_ids=forbidden_token_ids,
-            temperature=temperature,
-            top_p=top_p,
-            top_k=top_k,
-            seed=seed,
-            beam_size=beam_size,
         )
         sampling_state = self._compiled_prefill_fn(self._flattened_transformer_state, sampling_state)
 
