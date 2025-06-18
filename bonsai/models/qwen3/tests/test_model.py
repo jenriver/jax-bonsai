@@ -77,7 +77,9 @@ def test_model_generation(model_name: str, local_cache_path: Path = '/tmp/models
         # (e.g., number of layers, KV heads, head dimension).
         model_sampler = sampler.Sampler(
             tokenizer,
-            sampler.CacheConfig(cache_size=256, num_layers=28, num_kv_heads=8, head_dim=128)
+            sampler.CacheConfig(cache_size=256, num_layers=28, num_kv_heads=8, head_dim=128),
+            temperature = 0.7,
+            top_p = 0.9,
         )
 
         generated_output = model_sampler(model, input_prompts, total_generation_steps=128, echo=True)
@@ -96,7 +98,7 @@ def test_model_generation(model_name: str, local_cache_path: Path = '/tmp/models
     except Exception as e:
         print(f"Test Failed: An error occurred during inference for {model_name}: {e}.")
         return "⛔️ Not supported (Consider fixing or creating an issue)"
-    
+
 
 if __name__ == "__main__":
     # --- Example Usage ---
