@@ -15,8 +15,8 @@ This directory contains a pure JAX implementation of the [Qwen3 language model](
 | [Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B) | ✅ Supported | ✅ Runs | ✅ Runs | ✅ Runs | ✅ Runs | ✅ Runs | ✅ Runs | ✅ Runs |
 | [Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B) | ✅ Supported | ✅ Runs | ✅ Runs | ✅ Runs | ✅ Runs | ✅ Runs | ✅ Runs | ✅ Runs |
 | [Qwen3-4B](https://huggingface.co/Qwen/Qwen3-4B) | 🟡 Not started| ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check| ❔ Needs check | ❔ Needs check|
-| [Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B) | 🟡 Not started | ❔ Needs check| ❔ Needs check| ❔ Needs check| ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check |
-| [Qwen3-14B](https://huggingface.co/Qwen/Qwen3-14B) | ✅ Supported | ✅ Runs | ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check |
+| [Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B) | 🟡 Not started | ❔ Needs check | ❔ Needs check| ❔ Needs check| ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check |
+| [Qwen3-14B](https://huggingface.co/Qwen/Qwen3-14B) | ✅ Supported | ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check |
 | [Qwen3-32B](https://huggingface.co/Qwen/Qwen3-32B) | 🟡 Not started | ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check |
 | **MoE Models** | | | | | | | | |
 | [Qwen3-30B-A3B](https://huggingface.co/Qwen/Qwen3-30B-A3B) | 🟡 Not started | ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check | ❔ Needs check |
