@@ -178,25 +178,17 @@ class Sampler:
 
     def __init__(
         self,
-        transformer: nnx.Module,
         tokenizer: Any,
         cache_config: CacheConfig,
     ):
         """Initializes the sampler.
 
         Args:
-          transformer: an instance of the transformer.
           tokenizer: a tokenizer for the given model.
           cache_config: configuration for the KV cache.
         """
         self.tokenizer = tok_adapter.TokenizerAdapter(tokenizer)
         self.cache_config = cache_config
-        self._transformer_graphdef: graph.NodeDef = nnx.graphdef(transformer)
-        self._transformer_state: list[statelib.State] = nnx.variables(transformer)
-        self._flattened_transformer_state: list[statelib.State] = jax.tree.leaves(
-            self._transformer_state,
-            is_leaf=lambda x: isinstance(x, nnx.Variable),
-        )
         # we separate out state and graph def so that the state can be passed as an
         # argument to _decode_fn, resulting in it not being treated as a static
         # arg. This greatly reduces the size of the HLO and reduces compile time
@@ -559,6 +551,7 @@ class Sampler:
 
     def __call__(
         self,
+        transformer: nnx.Module,
         input_strings: Sequence[str],
         total_generation_steps: int,
         max_prompt_length: int | None = None,
@@ -578,6 +571,7 @@ class Sampler:
         If None of them are provided, the sampling mode will be greedy.
 
         Args:
+          transformer: an instance of the transformer.
           input_strings: input prompts to feed to the model for sampling.
           total_generation_steps: number of generation steps. will correspond to the
             longest prompt in the batch.
@@ -596,6 +590,12 @@ class Sampler:
         Returns:
           sampler_output: A SamplerOutput object containing the generated samples.
         """
+        self._transformer_graphdef: graph.NodeDef = nnx.graphdef(transformer)
+        self._transformer_state: list[statelib.State] = nnx.variables(transformer)
+        self._flattened_transformer_state: list[statelib.State] = jax.tree.leaves(
+            self._transformer_state,
+            is_leaf=lambda x: isinstance(x, nnx.Variable),
+        )
         forbidden_token_ids = None
         if forbidden_tokens is not None:
             forbidden_token_ids = []
