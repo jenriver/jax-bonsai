@@ -103,13 +103,15 @@ class SamplerOutput:
 
 
 @dataclasses.dataclass(frozen=True)
-class CacheConfig:
+class KVCacheConfig:
     """Configuration for the KV cache."""
 
-    cache_size: int
-    num_layers: int
-    num_kv_heads: int
-    head_dim: int
+    # Core Dimensions (already in your config, essential)
+    cache_size: int  # Maximum sequence length / context window the cache can store.
+    num_layers: int  # Number of transformer layers in the model.
+    num_kv_heads: int  # Number of Key/Value heads. (Can be 1 for MQA, or equal to num_attention_heads for MHA).
+    head_dim: int    # Dimension of each attention head (d_model / num_attention_heads).
+
 
 
 def _sample_top_p(probs: jnp.ndarray, p: float, key: jax.Array, k: int | None = None) -> jnp.ndarray:
@@ -179,7 +181,7 @@ class Sampler:
     def __init__(
         self,
         tokenizer: Any,
-        cache_config: CacheConfig,
+        kv_cache_config: KVCacheConfig,
         temperature: float = 0.0,
         top_p: float | None = None,
         top_k: int | None = None,
@@ -196,7 +198,7 @@ class Sampler:
 
         Args:
           tokenizer: a tokenizer for the given model.
-          cache_config: configuration for the KV cache.
+          kv_cache_config: configuration for the KV cache.
           temperature: temperature for sampling.
           top_p: top-p sampling threshold.
           top_k: top-k sampling threshold.
@@ -206,7 +208,7 @@ class Sampler:
             token must map to a single token id in the vocab.
         """
         self.tokenizer = tok_adapter.TokenizerAdapter(tokenizer)
-        self.cache_config = cache_config
+        self.kv_cache_config = kv_cache_config
         # we separate out state and graph def so that the state can be passed as an
         # argument to _decode_fn, resulting in it not being treated as a static
         # arg. This greatly reduces the size of the HLO and reduces compile time
@@ -316,11 +318,11 @@ class Sampler:
         done = jnp.zeros((batch_size,), dtype=jnp.bool_)
 
         cache = _init_cache(
-            n_layers=self.cache_config.num_layers,
-            cache_size=self.cache_config.cache_size,
+            n_layers=self.kv_cache_config.num_layers,
+            cache_size=self.kv_cache_config.cache_size,
             batch_size=batch_size,
-            num_kv_heads=self.cache_config.num_kv_heads,
-            head_dim=self.cache_config.head_dim,
+            num_kv_heads=self.kv_cache_config.num_kv_heads,
+            head_dim=self.kv_cache_config.head_dim,
             dtype=self.dtype,
         )
 
@@ -455,7 +457,7 @@ class Sampler:
         )
 
         input_mask = tokens != self.tokenizer.pad_id()
-        attention_mask = utils.make_causal_attn_mask(input_mask, self.cache_config.cache_size)
+        attention_mask = utils.make_causal_attn_mask(input_mask, self.kv_cache_config.cache_size)
 
         transformer = nnx.merge(self._transformer_graphdef, params)
         logits, cache = transformer(
@@ -549,7 +551,7 @@ class Sampler:
         step_positions = jnp.expand_dims(sampler_state.positions[:, decoding_step], -1)
 
         input_mask = sampler_state.token_buffer == self.tokenizer.pad_id()
-        attention_mask = utils.compute_attention_masks(decoding_step, self.cache_config.cache_size, input_mask)
+        attention_mask = utils.compute_attention_masks(decoding_step, self.kv_cache_config.cache_size, input_mask)
 
         transformer = nnx.merge(self._transformer_graphdef, params)
         logits, cache = transformer(
@@ -624,9 +626,9 @@ class Sampler:
             ]
         )
         total_sampling_steps = max_prompt_length + total_generation_steps
-        if total_sampling_steps > self.cache_config.cache_size:
+        if total_sampling_steps > self.kv_cache_config.cache_size:
             raise ValueError(
-                f"Total sampling steps {total_sampling_steps} must be less than the cache size {self.cache_config.cache_size}."
+                f"Total sampling steps {total_sampling_steps} must be less than the cache size {self.kv_cache_config.cache_size}."
             )
 
         sampling_state = self.init_sample_state(

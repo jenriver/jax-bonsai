@@ -77,7 +77,7 @@ def test_model_generation(model_name: str, local_cache_path: Path = '/tmp/models
         # (e.g., number of layers, KV heads, head dimension).
         model_sampler = sampler.Sampler(
             tokenizer,
-            sampler.CacheConfig(cache_size=256, num_layers=28, num_kv_heads=8, head_dim=128),
+            sampler.KVCacheConfig(cache_size=256, num_layers=28, num_kv_heads=8, head_dim=128),
             temperature = 0.7,
             top_p = 0.9,
         )
