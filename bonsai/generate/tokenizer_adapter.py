@@ -18,8 +18,6 @@ import enum
 import inspect
 from typing import Any
 
-import sentencepiece as spm
-
 
 class TokenizerType(enum.Enum):
     SP: str = "sp"  # sentencepiece tokenizer
@@ -36,8 +34,6 @@ class TokenizerAdapter:
         missing_methods = self._missing_methods()
         if not missing_methods:
             self._tokenizer_type = TokenizerType.NONE
-        elif isinstance(self._tokenizer, spm.SentencePieceProcessor):
-            self._tokenizer_type = TokenizerType.SP
         elif self._is_hf_tokenizer():
             self._tokenizer_type = TokenizerType.HF
         else:

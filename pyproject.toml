@@ -21,13 +21,13 @@ classifiers = [
 dependencies = [
   "jax",
   "jaxlib",
+  "jaxtyping",
   "flax",
   "setuptools", # Added from requirements.txt
   "ml-dtypes>=0.2.0", # Added from requirements.txt
   "huggingface-hub", # Added from requirements.txt
   "transformers", # Added from requirements.txt
   "jinja2", # Added from requirements.txt
-  "tunix @ git+https://github.com/google/tunix", # Added from requirements.txt
   "flax @ git+https://github.com/google/flax.git", # Added from requirements.txt (already present, but for explicit git ref)
 ]
 
