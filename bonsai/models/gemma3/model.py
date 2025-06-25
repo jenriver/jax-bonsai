@@ -109,21 +109,6 @@ class ModelConfig:
         )
 
     @classmethod
-    def gemma3_1b_it(cls) -> "ModelConfig":
-        return cls(
-            num_layers=26,
-            num_embed=262144,
-            embed_dim=1152,
-            hidden_dim=6 * 1152,
-            num_heads=4,
-            head_dim=256,
-            num_kv_heads=1,
-            sliding_window_size=512,
-            local_base_frequency=10_000,
-            global_base_frequency=1_000_000,
-        )
-
-    @classmethod
     def gemma3_4b(cls) -> "ModelConfig":
         """Gemma3-4B text-only config."""
         return cls(

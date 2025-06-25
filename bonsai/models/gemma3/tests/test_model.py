@@ -15,7 +15,7 @@ from bonsai.models.gemma3 import model, params
 # --- Configuration Constants ---
 MODEL_CONFIGS = {
     "google/gemma-3-1b-pt": {"config_fn": model.ModelConfig.gemma3_1b},
-    "google/gemma-3-1b-it": {"config_fn": model.ModelConfig.gemma3_1b_it},
+    "google/gemma-3-1b-it": {"config_fn": model.ModelConfig.gemma3_1b},
     "google/gemma-3-4b-it": {"config_fn": model.ModelConfig.gemma3_4b},
 }
 
