@@ -9,7 +9,7 @@ Bonsai supports integration with powerful JAX libraries.
 * [Tunix](https://github.com/google/tunix/tree/main), a post-training library supporting Supervised Fine-Tuning, RL, Knoweldge Distillation.
 
 > [!IMPORTANT]
-> Bonsai is a simple, lightweight JAX implementation. For large-scale pretraining on Google Cloud, see [MaxText](https://github.com/AI-Hypercomputer/maxtext) and [MaxDiffusion](https://github.com/AI-Hypercomputer/maxdiffusion).
+> Bonsai is a simple, lightweight JAX implementation. For large-scale high performance pretraining on Google Cloud, see [MaxText](https://github.com/AI-Hypercomputer/maxtext) and [MaxDiffusion](https://github.com/AI-Hypercomputer/maxdiffusion).
 
 
 ## Current Models
