@@ -295,6 +295,8 @@ class Attention(nnx.Module):
         if attn_type == AttentionType.LOCAL_SLIDING and sliding_window_size is None:
             raise ValueError("`sliding_window_size` must be set if `attn_type` is Local Sliding.")
 
+        self.num_heads = num_heads
+        self.num_kv_heads = num_kv_heads
         self.sliding_window_size = sliding_window_size
         self.attn_type = attn_type
         self.rope_base_frequency = rope_base_frequency
@@ -345,15 +347,9 @@ class Attention(nnx.Module):
             rngs=rngs,
             sharding=shd_config.o_weight_nhd,
         )
-        print(f'JIYOUNHA: self.k_proj: {self.k_proj}')
-        print(f'JIYOUNHA: self.k_proj.shape: {self.k_proj.shape}')
-        print(f'JIYOUNHA: self.v_proj: {self.v_proj}')
-        print(f'JIYOUNHA: self.v_proj.shape: {self.v_proj.shape}')
         # No sharding on head_dim.
         self.q_norm = RMSNorm(head_dim, rngs=rngs)
         self.k_norm = RMSNorm(head_dim, rngs=rngs)
-        
-        
 
     @jax.named_scope("attention")
     def __call__(
@@ -368,10 +364,6 @@ class Attention(nnx.Module):
         query_proj = self.q_proj(x)
         key_proj = self.k_proj(x)
         value_proj = self.v_proj(x)
-        print(f'JIYOUNHA : before shard key_proj : {key_proj}')
-        print(f'JIYOUNHA : before shard value_proj : {value_proj}')
-        print(f'JIYOUNHA : act_btnh : {self.shd_config.act_btnh}')
-
 
         query_proj = shard(query_proj, self.shd_config.act_btnh)
         key_proj = shard(key_proj, self.shd_config.act_btnh)
@@ -395,21 +387,11 @@ class Attention(nnx.Module):
             base_frequency=self.rope_base_frequency,
             scale_factor=self.rope_scale_factor,
         )
-        # (1, 256, 8, 128)
-        print(f'JIYOUNHA : cache k shape : {cache['k'].shape}')
-        print(f'JIYOUNHA : cache v shape : {cache['v'].shape}')
-
-       
-        # (1, 32, 1, 256)
-        print(f'JIYOUNHA : after shard key_proj : {key_proj}')
-        print(f'JIYOUNHA : after shard value_proj : {value_proj}')
-
 
         # Cache is left aligned.
         if cache is not None:
             end_index = cache["end_index"][0]
             slice_indices = (0, end_index % cache["v"].shape[1], 0, 0)
-            print(f'JIYOUNHA : slice_indices : {slice_indices}')
             value_proj = jax.lax.dynamic_update_slice(
                 cache["v"],
                 value_proj,
@@ -419,7 +401,6 @@ class Attention(nnx.Module):
 
         if self.use_gqa:
             # Reshape matrices to enable einsums over groups.
-            print(f'JIYOUNHA : use gqa.')
             b, t, kg, h = query_scaled.shape
             query_scaled = query_scaled.reshape((b, t, self.num_kv_heads, int(kg / self.num_kv_heads), h))
             logits = jnp.einsum("BTKGH,BSKH->BTKGS", query_scaled, key_proj)
@@ -482,17 +463,6 @@ class Attention(nnx.Module):
                 return self.head_dim**-0.5
             case QueryPreAttentionNormalisation.BY_ONE_OVER_SQRT_EMBED_DIM_DIV_NUM_HEADS:
                 return (self.features // self.num_heads) ** -0.5
-
-    @property
-    def num_heads(self):
-        # return self.q_einsum.shape[0]
-        return 4
-
-    @property
-    def num_kv_heads(self):
-        # return self.kv_einsum.shape[1]
-        # return self.num_kv_heads --> RecursionError: maximum recursion depth exceeded
-        return 1
 
     @property
     def use_gqa(self):
@@ -678,7 +648,6 @@ class Gemma3(nnx.Module):
             for _, attn_type in zip(range(config.num_layers), itertools.cycle(GEMMA3_ATTENTION_PATTERN))
         ]
         self.final_norm = RMSNorm(config.embed_dim, rngs=rngs, sharding=config.shd_config.rms_norm_weight)
-        print(f'JIYOUNHA : self.final norm : {self.final_norm}')
 
     def __call__(
         self,
@@ -706,23 +675,17 @@ class Gemma3(nnx.Module):
           predicted_logits: output logits predicted by the model
           new_cache: updated cache if the input cache is not None, None elsewhere.
         """
-        print(f'JIYOUNHA : in the call function.')
         new_cache = None if cache is None else {}
         x = self.embedder.encode(last_tokens)
-        print(f'JIYOUNHA : x shape : {x.shape}')
         for i, layer in enumerate(self.layers):
             layer_name = f"layer_{i}"
             layer_cache = cache[layer_name] if cache else None
-            print(f'JIYOUNHA : layer_cache.k.shape : {layer_cache['k'].shape}')
-            print(f'JIYOUNHA : layer_cache.v.shape : {layer_cache['v'].shape}')
             layer_cache, x = layer(
                 x,
                 positions,
                 layer_cache,
                 attention_mask,
             )
-            print(f'JIYOUNHA : x shape : {x.shape}')
-            # JIYOUNHA: what does below do -- consider erasing?
             if cache is not None:
                 new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
 
