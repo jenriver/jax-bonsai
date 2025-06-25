@@ -1,26 +1,26 @@
 # This file should be run as a module from the project root using:
-# python -m bonsai.models.qwen3.tests.test_model
+# python -m bonsai.models.gemma3.tests.test_model
 import os
 import time
-import traceback
 from pathlib import Path
 from typing import List
+import traceback
 
 from huggingface_hub import snapshot_download
 from transformers import AutoTokenizer
 
 from bonsai.generate import sampler
-from bonsai.models.qwen3 import model, params
+from bonsai.models.gemma3 import model, params
 
 # --- Configuration Constants ---
 MODEL_CONFIGS = {
-    "Qwen/Qwen3-0.6B": {"config_fn": model.ModelConfig.qwen3_0_6b},
-    "Qwen/Qwen3-1.7B": {"config_fn": model.ModelConfig.qwen3_1_7b},
-    "Qwen/Qwen3-14B": {"config_fn": model.ModelConfig.qwen3_14b},
+    "google/gemma-3-1b-pt": {"config_fn": model.ModelConfig.gemma3_1b},
+    "google/gemma-3-1b-it": {"config_fn": model.ModelConfig.gemma3_1b},
+    "google/gemma-3-4b-it": {"config_fn": model.ModelConfig.gemma3_4b},
 }
 
 # --- Model and Tokenizer Loading ---
-def load_model_and_tokenizer(model_name: str, local_cache_path: Path) -> tuple[model.Qwen3, AutoTokenizer]:
+def load_model_and_tokenizer(model_name: str, local_cache_path: Path) -> tuple[model.Gemma3, AutoTokenizer]:
     """
     Downloads model weights if necessary, then loads the model and tokenizer.
     """
@@ -80,7 +80,7 @@ def test_model_generation(model_name: str, local_cache_path: Path = '/tmp/models
         # (e.g., number of layers, KV heads, head dimension).
         model_sampler = sampler.Sampler(
             tokenizer,
-            sampler.KVCacheConfig(cache_size=256, num_layers=28, num_kv_heads=8, head_dim=128),
+            sampler.KVCacheConfig(cache_size=256, num_layers=26, num_kv_heads=1, head_dim=256),
             temperature = 0.7,
             top_p = 0.9,
         )
@@ -106,9 +106,10 @@ def test_model_generation(model_name: str, local_cache_path: Path = '/tmp/models
 
 if __name__ == "__main__":
     # --- Example Usage ---
-    # Choose the Qwen3 model you want to test.
+    # Choose the gemma3 model you want to test.
     # Ensure its configuration is present and accurate in the `MODEL_CONFIGS` dictionary.
-    model_to_test = "Qwen/Qwen3-0.6B" # Change this to "Qwen/Qwen3-1.7B", "Qwen/Qwen3-14B", etc.
+    model_to_test = "google/gemma-3-1b-it"
+    # model_to_test = "google/gemma-3-4b-it"
 
     result = test_model_generation(model_to_test, show_output=True)
     print(f"\nOverall Test Result for {model_to_test}: {result}")

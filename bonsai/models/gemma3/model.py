@@ -37,8 +37,7 @@ class ShardingConfig:
 
     emb_vd: Tuple[str | None, ...]
     q_weight_ndh: Tuple[str | None, ...]
-    kv_weight_cndh: Tuple[str | None, ...]
-    qkv_weight_cndh: Tuple[str | None, ...]
+    kv_weight_ndh: Tuple[str | None, ...]
     o_weight_nhd: Tuple[str | None, ...]
     ffw_weight_df: Tuple[str | None, ...]
     ffw_weight_fd: Tuple[str | None, ...]
@@ -54,8 +53,7 @@ class ShardingConfig:
         return ShardingConfig(
             emb_vd=("tp", fsdp),
             q_weight_ndh=("tp", fsdp, None),
-            kv_weight_cndh=(None, "tp", fsdp, None),
-            qkv_weight_cndh=(None, "tp", fsdp, None),
+            kv_weight_ndh=(None, "tp", fsdp, None),
             o_weight_nhd=("tp", None, fsdp),
             ffw_weight_df=(fsdp, "tp"),
             ffw_weight_fd=("tp", fsdp),
@@ -281,6 +279,7 @@ class Attention(nnx.Module):
     def __init__(
         self,
         *,
+        embed_dim: int,
         num_heads: int,
         num_kv_heads: int,
         features: int,
@@ -302,35 +301,59 @@ class Attention(nnx.Module):
         self.rope_scale_factor = rope_scale_factor
         self.query_pre_attn_norm = query_pre_attn_norm
         self.shd_config = shd_config
+        """
         self.attn_vec_einsum = Einsum(
             einsum_str="BTNH,NHD->BTD",
             shape=(num_heads, head_dim, features),
             rngs=rngs,
             sharding=shd_config.o_weight_nhd,
         )
-        if num_heads == num_kv_heads:
-            self.qkv_einsum = Einsum(
-                einsum_str="BTD,SNDH->SBTNH",
-                shape=(3, num_heads, features, head_dim),
-                rngs=rngs,
-                sharding=shd_config.qkv_weight_cndh,
-            )
-        else:
-            self.q_einsum = Einsum(
-                einsum_str="BTD,NDH->BTNH",
-                shape=(num_heads, features, head_dim),
-                rngs=rngs,
-                sharding=shd_config.q_weight_ndh,
-            )
-            self.kv_einsum = Einsum(
-                einsum_str="BSD,CKDH->CBSKH",
-                shape=(2, num_kv_heads, features, head_dim),
-                rngs=rngs,
-                sharding=(None, None, "fsdp", None) if num_kv_heads == 1 else shd_config.kv_weight_cndh,
-            )
+        self.q_einsum = Einsum(
+            einsum_str="BTD,NDH->BTNH",
+            shape=(num_heads, features, head_dim),
+            rngs=rngs,
+            sharding=shd_config.q_weight_ndh,
+        )
+        self.kv_einsum = Einsum(
+            einsum_str="BSD,CKDH->CBSKH",
+            shape=(2, num_kv_heads, features, head_dim),
+            rngs=rngs,
+            sharding=(None, None, "fsdp", None) if num_kv_heads == 1 else shd_config.kv_weight_cndh,
+        )
+        """
+        self.q_proj = Einsum(
+            einsum_str="BTD,DNH->BTNH",
+            shape=(embed_dim, num_heads, head_dim),
+            rngs=rngs,
+            sharding=shd_config.q_weight_ndh,
+        )
+        self.k_proj = Einsum(
+            einsum_str="BSD,DKH->BSKH",
+            shape=(embed_dim, num_kv_heads, head_dim),
+            rngs=rngs,
+            sharding=shd_config.kv_weight_ndh,
+        )
+        self.v_proj = Einsum(
+            einsum_str="BSD,DKH->BSKH",
+            shape=(embed_dim, num_kv_heads, head_dim),
+            rngs=rngs,
+            sharding=shd_config.kv_weight_ndh,
+        )
+        self.o_proj = Einsum(
+            einsum_str="BTNH,NHD->BTD",
+            shape=(num_heads, head_dim, embed_dim),
+            rngs=rngs,
+            sharding=shd_config.o_weight_nhd,
+        )
+        print(f'JIYOUNHA: self.k_proj: {self.k_proj}')
+        print(f'JIYOUNHA: self.k_proj.shape: {self.k_proj.shape}')
+        print(f'JIYOUNHA: self.v_proj: {self.v_proj}')
+        print(f'JIYOUNHA: self.v_proj.shape: {self.v_proj.shape}')
         # No sharding on head_dim.
-        self._query_norm = RMSNorm(head_dim, rngs=rngs)
-        self._key_norm = RMSNorm(head_dim, rngs=rngs)
+        self.q_norm = RMSNorm(head_dim, rngs=rngs)
+        self.k_norm = RMSNorm(head_dim, rngs=rngs)
+        
+        
 
     @jax.named_scope("attention")
     def __call__(
@@ -342,18 +365,20 @@ class Attention(nnx.Module):
     ) -> tuple[LayerCache | None, jaxtyping.Array]:
         seq_len = x.shape[1]
 
-        if self.use_qkv_einsum:
-            query_proj, key_proj, value_proj = self.qkv_einsum(x)
-        else:
-            query_proj = self.q_einsum(x)
-            key_proj, value_proj = self.kv_einsum(x)
+        query_proj = self.q_proj(x)
+        key_proj = self.k_proj(x)
+        value_proj = self.v_proj(x)
+        print(f'JIYOUNHA : before shard key_proj : {key_proj}')
+        print(f'JIYOUNHA : before shard value_proj : {value_proj}')
+        print(f'JIYOUNHA : act_btnh : {self.shd_config.act_btnh}')
+
 
         query_proj = shard(query_proj, self.shd_config.act_btnh)
         key_proj = shard(key_proj, self.shd_config.act_btnh)
         value_proj = shard(value_proj, self.shd_config.act_btnh)
 
-        query_proj = self._query_norm(query_proj)
-        key_proj = self._key_norm(key_proj)
+        query_proj = self.q_norm(query_proj)
+        key_proj = self.k_norm(key_proj)
 
         query_proj = apply_rope(
             query_proj,
@@ -370,11 +395,21 @@ class Attention(nnx.Module):
             base_frequency=self.rope_base_frequency,
             scale_factor=self.rope_scale_factor,
         )
+        # (1, 256, 8, 128)
+        print(f'JIYOUNHA : cache k shape : {cache['k'].shape}')
+        print(f'JIYOUNHA : cache v shape : {cache['v'].shape}')
+
+       
+        # (1, 32, 1, 256)
+        print(f'JIYOUNHA : after shard key_proj : {key_proj}')
+        print(f'JIYOUNHA : after shard value_proj : {value_proj}')
+
 
         # Cache is left aligned.
         if cache is not None:
             end_index = cache["end_index"][0]
             slice_indices = (0, end_index % cache["v"].shape[1], 0, 0)
+            print(f'JIYOUNHA : slice_indices : {slice_indices}')
             value_proj = jax.lax.dynamic_update_slice(
                 cache["v"],
                 value_proj,
@@ -384,9 +419,11 @@ class Attention(nnx.Module):
 
         if self.use_gqa:
             # Reshape matrices to enable einsums over groups.
+            print(f'JIYOUNHA : use gqa.')
             b, t, kg, h = query_scaled.shape
             query_scaled = query_scaled.reshape((b, t, self.num_kv_heads, int(kg / self.num_kv_heads), h))
             logits = jnp.einsum("BTKGH,BSKH->BTKGS", query_scaled, key_proj)
+            # b, kh, qh // kh, t, s
             b, t, k, g, s = logits.shape
             logits = logits.reshape((b, t, k * g, s))
         else:
@@ -416,7 +453,7 @@ class Attention(nnx.Module):
             # [batch_size, seq_len, num_heads, head_dim]
             encoded = jnp.einsum("BTNS,BSNH->BTNH", probs, value_proj)
 
-        attn_output = self.attn_vec_einsum(encoded)
+        attn_output = self.o_proj(encoded)
         attn_output = shard(attn_output, self.shd_config.act_btd)
 
         if cache is not None:
@@ -432,11 +469,11 @@ class Attention(nnx.Module):
 
     @property
     def head_dim(self):
-        return self.attn_vec_einsum.shape[1]
+        return self.o_proj.shape[1]
 
     @property
     def features(self):
-        return self.attn_vec_einsum.shape[2]
+        return self.o_proj.shape[2]
 
     @property
     def query_pre_attn_scalar(self):
@@ -448,15 +485,14 @@ class Attention(nnx.Module):
 
     @property
     def num_heads(self):
-        return self.qkv_einsum.shape[1] if self.use_qkv_einsum else self.q_einsum.shape[0]
+        # return self.q_einsum.shape[0]
+        return 4
 
     @property
     def num_kv_heads(self):
-        return self.qkv_einsum.shape[1] if self.use_qkv_einsum else self.kv_einsum.shape[1]
-
-    @property
-    def use_qkv_einsum(self):
-        return hasattr(self, "qkv_einsum") and self.qkv_einsum is not None
+        # return self.kv_einsum.shape[1]
+        # return self.num_kv_heads --> RecursionError: maximum recursion depth exceeded
+        return 1
 
     @property
     def use_gqa(self):
@@ -530,8 +566,10 @@ class Block(nnx.Module):
         query_pre_attn_norm: QueryPreAttentionNormalisation,
         shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
     ):
-        self.pre_attention_norm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
+        # self.pre_attention_norm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
+        self.input_layernorm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
         self.attn = Attention(
+            embed_dim=embed_dim,
             num_heads=num_heads,
             num_kv_heads=num_kv_heads,
             features=embed_dim,
@@ -544,15 +582,15 @@ class Block(nnx.Module):
             rngs=rngs,
             shd_config=shd_config,
         )
-        self.post_attention_norm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
-        self.pre_ffw_norm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
+        self.post_attention_layernorm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
+        self.pre_feedforward_layernorm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
         self.mlp = FeedForward(
             features=embed_dim,
             hidden_dim=hidden_dim,
             rngs=rngs,
             shd_config=shd_config,
         )
-        self.post_ffw_norm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
+        self.post_feedforward_layernorm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
 
     def __call__(
         self,
@@ -561,20 +599,20 @@ class Block(nnx.Module):
         cache: LayerCache | None,
         attn_mask: jaxtyping.Array,
     ) -> tuple[LayerCache | None, jaxtyping.Array]:
-        inputs_normalized = self.pre_attention_norm(x)
+        inputs_normalized = self.input_layernorm(x)
         cache, attn_output = self.attn(
             inputs_normalized,
             segment_pos,
             cache,
             attn_mask,
         )
-        attn_output = self.post_attention_norm(attn_output)
+        attn_output = self.post_attention_layernorm(attn_output)
 
         attn_output += x
 
-        outputs = self.pre_ffw_norm(attn_output)
+        outputs = self.pre_feedforward_layernorm(attn_output)
         outputs = self.mlp(outputs)
-        outputs = self.post_ffw_norm(outputs)
+        outputs = self.post_feedforward_layernorm(outputs)
 
         outputs += attn_output
         return cache, outputs
@@ -590,7 +628,7 @@ class RMSNorm(nnx.Module):
         rngs: nnx.Rngs,
         sharding: tuple[str, ...] = (),
     ):
-        self.scale = nnx.Param(
+        self.w = nnx.Param(
             nnx.initializers.zeros_init()(rngs.params(), dim),
             sharding=sharding,
         )
@@ -603,7 +641,7 @@ class RMSNorm(nnx.Module):
         # normed_inputs is a rank-K tensor, K > 1 (K is typically 2 or 3). scale is
         # a rank-1 tensor. To avoid implicit rank-promotion, reshape scale to
         # a (1, ..., 1, D) tensor, so the rank of scale matches normed_inputs.
-        scale = jnp.expand_dims(self.scale.value, axis=range(len(x.shape) - 1))
+        scale = jnp.expand_dims(self.w, axis=range(len(x.shape) - 1))
         normed_inputs = normed_inputs * (1 + scale)
         return normed_inputs
 
@@ -640,6 +678,7 @@ class Gemma3(nnx.Module):
             for _, attn_type in zip(range(config.num_layers), itertools.cycle(GEMMA3_ATTENTION_PATTERN))
         ]
         self.final_norm = RMSNorm(config.embed_dim, rngs=rngs, sharding=config.shd_config.rms_norm_weight)
+        print(f'JIYOUNHA : self.final norm : {self.final_norm}')
 
     def __call__(
         self,
@@ -667,17 +706,23 @@ class Gemma3(nnx.Module):
           predicted_logits: output logits predicted by the model
           new_cache: updated cache if the input cache is not None, None elsewhere.
         """
+        print(f'JIYOUNHA : in the call function.')
         new_cache = None if cache is None else {}
         x = self.embedder.encode(last_tokens)
+        print(f'JIYOUNHA : x shape : {x.shape}')
         for i, layer in enumerate(self.layers):
             layer_name = f"layer_{i}"
             layer_cache = cache[layer_name] if cache else None
+            print(f'JIYOUNHA : layer_cache.k.shape : {layer_cache['k'].shape}')
+            print(f'JIYOUNHA : layer_cache.v.shape : {layer_cache['v'].shape}')
             layer_cache, x = layer(
                 x,
                 positions,
                 layer_cache,
                 attention_mask,
             )
+            print(f'JIYOUNHA : x shape : {x.shape}')
+            # JIYOUNHA: what does below do -- consider erasing?
             if cache is not None:
                 new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
 

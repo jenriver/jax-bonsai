@@ -10,9 +10,9 @@ Bonsai supports integration with powerful JAX libraries.
 
 ## Current Models
 
+* [Gemma 3](bonsai/models/gemma3/README.md)
 * [Qwen 3](bonsai/models/qwen3/README.md)
 * [Llama 3](bonsai/models/llama3/README.md)
-* [Gemma 3](bonsai/models/gemma3/README.md)
 * (Coming soon) SAM2
 
 ## 🏁 Getting Started
