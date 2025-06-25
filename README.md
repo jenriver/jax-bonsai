@@ -8,6 +8,10 @@ A collection of State-of-the-Art models implemented using JAX [NNX](https://flax
 Bonsai supports integration with powerful JAX libraries.
 * [Tunix](https://github.com/google/tunix/tree/main), a post-training library supporting Supervised Fine-Tuning, RL, Knoweldge Distillation.
 
+> [!IMPORTANT]
+> This is a simple, lightweight JAX implementation. For large-scale high-performance pretraining, see [MaxText](https://github.com/AI-Hypercomputer/maxtext) and [MaxDiffusion](https://github.com/AI-Hypercomputer/maxdiffusion).
+
+
 ## Current Models
 
 * [Gemma 3](bonsai/models/gemma3/README.md)
