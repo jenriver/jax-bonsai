@@ -110,8 +110,7 @@ class KVCacheConfig:
     cache_size: int  # Maximum sequence length / context window the cache can store.
     num_layers: int  # Number of transformer layers in the model.
     num_kv_heads: int  # Number of Key/Value heads. (Can be 1 for MQA, or equal to num_attention_heads for MHA).
-    head_dim: int    # Dimension of each attention head (d_model / num_attention_heads).
-
+    head_dim: int  # Dimension of each attention head (d_model / num_attention_heads).
 
 
 def _sample_top_p(probs: jnp.ndarray, p: float, key: jax.Array, k: int | None = None) -> jnp.ndarray:
@@ -274,9 +273,9 @@ class Sampler:
             self._transformer_state = state
         else:
             # LoRA state replacement.
-            assert (
-                len(param_types) == 1 and nnx.LoRAParam in param_types
-            ), f"Only LoRAParam is supported. Invalid: {param_types}"
+            assert len(param_types) == 1 and nnx.LoRAParam in param_types, (
+                f"Only LoRAParam is supported. Invalid: {param_types}"
+            )
             original_lora_params = statelib.filter_state(self._transformer_state, nnx.LoRAParam)
             check_tree_structure(original_lora_params, state)
             base_state = statelib.filter_state(self._transformer_state, filterlib.Not(nnx.LoRAParam))

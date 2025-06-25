@@ -19,6 +19,7 @@ MODEL_CONFIGS = {
     "Qwen/Qwen3-14B": {"config_fn": model.ModelConfig.qwen3_14b},
 }
 
+
 # --- Model and Tokenizer Loading ---
 def load_model_and_tokenizer(model_name: str, local_cache_path: Path) -> tuple[model.Qwen3, AutoTokenizer]:
     """
@@ -36,6 +37,7 @@ def load_model_and_tokenizer(model_name: str, local_cache_path: Path) -> tuple[m
     model = params.create_model_from_safe_tensors(model_cache_path, config)
     tokenizer = AutoTokenizer.from_pretrained(model_cache_path)
     return model, tokenizer
+
 
 # --- Prompt Templatization ---
 def apply_chat_template_to_prompts(tokenizer: AutoTokenizer, prompts: List[str]) -> List[str]:
@@ -56,13 +58,14 @@ def apply_chat_template_to_prompts(tokenizer: AutoTokenizer, prompts: List[str])
                 [{"role": "user", "content": p}],
                 tokenize=False,
                 add_generation_prompt=True,
-                enable_thinking=False, # Set to True if "thinking" messages are desired
+                enable_thinking=False,  # Set to True if "thinking" messages are desired
             )
         )
     return templated_outputs
 
+
 # --- Main Execution Block ---
-def test_model_generation(model_name: str, local_cache_path: Path = '/tmp/models/', show_output: bool = False):
+def test_model_generation(model_name: str, local_cache_path: Path = "/tmp/models/", show_output: bool = False):
     try:
         # Load model and tokenizer
         model, tokenizer = load_model_and_tokenizer(model_name, local_cache_path)
@@ -72,7 +75,7 @@ def test_model_generation(model_name: str, local_cache_path: Path = '/tmp/models
             tokenizer,
             [
                 "Why is the sky blue?",
-            ]
+            ],
         )
 
         # Initialize the Sampler
@@ -81,8 +84,8 @@ def test_model_generation(model_name: str, local_cache_path: Path = '/tmp/models
         model_sampler = sampler.Sampler(
             tokenizer,
             sampler.KVCacheConfig(cache_size=256, num_layers=28, num_kv_heads=8, head_dim=128),
-            temperature = 0.7,
-            top_p = 0.9,
+            temperature=0.7,
+            top_p=0.9,
         )
 
         generated_output = model_sampler(model, input_prompts, total_generation_steps=128, echo=True)
@@ -108,7 +111,7 @@ if __name__ == "__main__":
     # --- Example Usage ---
     # Choose the Qwen3 model you want to test.
     # Ensure its configuration is present and accurate in the `MODEL_CONFIGS` dictionary.
-    model_to_test = "Qwen/Qwen3-0.6B" # Change this to "Qwen/Qwen3-1.7B", "Qwen/Qwen3-14B", etc.
+    model_to_test = "Qwen/Qwen3-0.6B"  # Change this to "Qwen/Qwen3-1.7B", "Qwen/Qwen3-14B", etc.
 
     result = test_model_generation(model_to_test, show_output=True)
     print(f"\nOverall Test Result for {model_to_test}: {result}")
