@@ -19,6 +19,7 @@ This provides a mapping from the upstream checkpoints[1] to our implementation.
 [1] https://github.com/google-deepmind/gemma
 """
 import re
+import pprint
 
 import flax
 import jax
@@ -125,7 +126,6 @@ def _assign_weights(keys, tensor, state_dict, torch_key, transform):
     """Convert weights and assign to nnx state_dict."""
     print(f'JIYOUNHA : keys: {keys}')
     print(f'JIYOUNHA : state_dict keys : {state_dict.keys()}')
-    print(f'JIYOUNHA : state_dict: {state_dict}')
     key = keys[0]
     if len(keys) == 1:
         try:
@@ -184,16 +184,16 @@ def create_model_from_safe_tensors(
     # print(f'JIYOUNHA : graph_def : {graph_def}')
     # print(f'JIYOUNHA : abs_state : {abs_state}')
     state_dict = abs_state.to_pure_dict()
+    pprint.pprint(state_dict, indent=1)
     # print(f'JIYOUNHA: state_dict : {state_dict}')
 
     for k, v in tensor_dict.items():
         jax_key, transform = _torch_key_to_jax_key(_get_key_and_transform_mapping(config), k)
         jax_keys = [_stoi(s) for s in jax_key.split(".")]
+        print("-----------------------------------------------------------")
         print(f'JIYOUNHA: jax_keys: {jax_keys}')
         print(f'JIYOUNHA: v: {v}')
         print(f'JIYOUNHA: k: {k}')
-        print(f'JIYOUNHA: state_dict: {state_dict}')
-        print(f'JIYOUNHA: transform: {transform}')
         _assign_weights(jax_keys, v, state_dict, k, transform)
 
     if mesh is not None:

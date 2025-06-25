@@ -15,6 +15,7 @@
 """Utils for loading and converting Qwen3 PT weights."""
 
 import re
+import pprint
 
 import jax
 import safetensors.flax as safetensors
@@ -142,6 +143,7 @@ def create_model_from_safe_tensors(
 
     graph_def, abs_state = nnx.split(qwen3)
     state_dict = abs_state.to_pure_dict()
+    pprint.pprint(state_dict, indent=1)
 
     for k, v in tensor_dict.items():
         jax_key, transform = _torch_key_to_jax_key(_get_key_and_transform_mapping(config), k)

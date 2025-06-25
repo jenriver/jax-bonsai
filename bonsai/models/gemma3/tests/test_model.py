@@ -15,6 +15,7 @@ from bonsai.models.gemma3 import model, params
 # --- Configuration Constants ---
 MODEL_CONFIGS = {
     "google/gemma-3-1b-pt": {"config_fn": model.ModelConfig.gemma3_1b},
+    "google/gemma-3-1b-it": {"config_fn": model.ModelConfig.gemma3_1b_it},
     "google/gemma-3-4b-it": {"config_fn": model.ModelConfig.gemma3_4b},
 }
 
@@ -79,7 +80,7 @@ def test_model_generation(model_name: str, local_cache_path: Path = '/tmp/models
         # (e.g., number of layers, KV heads, head dimension).
         model_sampler = sampler.Sampler(
             tokenizer,
-            sampler.KVCacheConfig(cache_size=256, num_layers=28, num_kv_heads=8, head_dim=128),
+            sampler.KVCacheConfig(cache_size=256, num_layers=26, num_kv_heads=1, head_dim=256),
             temperature = 0.7,
             top_p = 0.9,
         )
@@ -107,7 +108,7 @@ if __name__ == "__main__":
     # --- Example Usage ---
     # Choose the gemma3 model you want to test.
     # Ensure its configuration is present and accurate in the `MODEL_CONFIGS` dictionary.
-    model_to_test = "google/gemma-3-1b-pt"
+    model_to_test = "google/gemma-3-1b-it"
     # model_to_test = "google/gemma-3-4b-it"
 
     result = test_model_generation(model_to_test, show_output=True)
