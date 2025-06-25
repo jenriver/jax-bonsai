@@ -329,8 +329,8 @@ class Attention(nnx.Module):
                 sharding=(None, None, "fsdp", None) if num_kv_heads == 1 else shd_config.kv_weight_cndh,
             )
         # No sharding on head_dim.
-        self._query_norm = RMSNorm(head_dim, rngs=rngs)
-        self._key_norm = RMSNorm(head_dim, rngs=rngs)
+        self.q_norm = RMSNorm(head_dim, rngs=rngs)
+        self.k_norm = RMSNorm(head_dim, rngs=rngs)
 
     @jax.named_scope("attention")
     def __call__(
@@ -352,8 +352,8 @@ class Attention(nnx.Module):
         key_proj = shard(key_proj, self.shd_config.act_btnh)
         value_proj = shard(value_proj, self.shd_config.act_btnh)
 
-        query_proj = self._query_norm(query_proj)
-        key_proj = self._key_norm(key_proj)
+        query_proj = self.q_norm(query_proj)
+        key_proj = self.k_norm(key_proj)
 
         query_proj = apply_rope(
             query_proj,
@@ -530,7 +530,8 @@ class Block(nnx.Module):
         query_pre_attn_norm: QueryPreAttentionNormalisation,
         shd_config: ShardingConfig = ShardingConfig.get_default_sharding(),
     ):
-        self.pre_attention_norm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
+        # self.pre_attention_norm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
+        self.input_layernorm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
         self.attn = Attention(
             num_heads=num_heads,
             num_kv_heads=num_kv_heads,
@@ -544,15 +545,15 @@ class Block(nnx.Module):
             rngs=rngs,
             shd_config=shd_config,
         )
-        self.post_attention_norm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
-        self.pre_ffw_norm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
+        self.post_attention_layernorm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
+        self.pre_feedforward_layernorm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
         self.mlp = FeedForward(
             features=embed_dim,
             hidden_dim=hidden_dim,
             rngs=rngs,
             shd_config=shd_config,
         )
-        self.post_ffw_norm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
+        self.post_feedforward_layernorm = RMSNorm(embed_dim, rngs=rngs, sharding=shd_config.rms_norm_weight)
 
     def __call__(
         self,
@@ -561,20 +562,20 @@ class Block(nnx.Module):
         cache: LayerCache | None,
         attn_mask: jaxtyping.Array,
     ) -> tuple[LayerCache | None, jaxtyping.Array]:
-        inputs_normalized = self.pre_attention_norm(x)
+        inputs_normalized = self.input_layernorm(x)
         cache, attn_output = self.attn(
             inputs_normalized,
             segment_pos,
             cache,
             attn_mask,
         )
-        attn_output = self.post_attention_norm(attn_output)
+        attn_output = self.post_attention_layernorm(attn_output)
 
         attn_output += x
 
-        outputs = self.pre_ffw_norm(attn_output)
+        outputs = self.pre_feedforward_layernorm(attn_output)
         outputs = self.mlp(outputs)
-        outputs = self.post_ffw_norm(outputs)
+        outputs = self.post_feedforward_layernorm(outputs)
 
         outputs += attn_output
         return cache, outputs
@@ -590,7 +591,7 @@ class RMSNorm(nnx.Module):
         rngs: nnx.Rngs,
         sharding: tuple[str, ...] = (),
     ):
-        self.scale = nnx.Param(
+        self.w = nnx.Param(
             nnx.initializers.zeros_init()(rngs.params(), dim),
             sharding=sharding,
         )

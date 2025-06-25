@@ -18,10 +18,11 @@ This provides a mapping from the upstream checkpoints[1] to our implementation.
 
 [1] https://github.com/google-deepmind/gemma
 """
+import re
 
 import flax
 import jax
-import sentencepiece as spm
+import safetensors.flax as safetensors
 from etils import epath
 from flax import nnx
 from jax import numpy as jnp
@@ -43,148 +44,162 @@ GEMMA3_27B_IT = "gs://gemma-data/checkpoints/gemma3-27b-it"
 GEMMA3_TOKENIZER = "gs://gemma-data/tokenizers/tokenizer_gemma3.model"
 
 
-def create_model_from_checkpoint(
-    checkpoint_path: str,
-    model_config: model_lib.ModelConfig,
+def _get_key_and_transform_mapping(cfg: model_lib.ModelConfig):
+    # Mapping of torch_keys -> (nnx_keys, (permute_rule, reshape_rule)).
+    return {
+        r"model\.embed_tokens\.weight": ("embedder.input_embedding", None),
+        # attention projection weights
+        r"model\.layers\.([0-9]+)\.self_attn\.q_proj\.weight": (
+            r"layers.\1.attn.q_proj.w",
+            ((1, 0), (cfg.embed_dim, cfg.num_heads, cfg.head_dim)),
+        ),
+        r"model\.layers\.([0-9]+)\.self_attn\.k_proj\.weight": (
+            r"layers.\1.attn.k_proj.w",
+            ((1, 0), (cfg.embed_dim, cfg.num_kv_heads, cfg.head_dim)),
+        ),
+        r"model\.layers\.([0-9]+)\.self_attn\.v_proj\.weight": (
+            r"layers.\1.attn.v_proj.w",
+            ((1, 0), (cfg.embed_dim, cfg.num_kv_heads, cfg.head_dim)),
+        ),
+        r"model\.layers\.([0-9]+)\.self_attn\.o_proj\.weight": (
+            r"layers.\1.attn.o_proj.w",
+            ((1, 0), (cfg.num_heads, cfg.head_dim, cfg.embed_dim)),
+        ),
+        # mlp
+        r"model\.layers\.([0-9]+)\.mlp\.gate_proj\.weight": (
+            r"layers.\1.mlp.gate_proj.kernel",
+            ((1, 0), None),
+        ),
+        r"model\.layers\.([0-9]+)\.mlp\.up_proj\.weight": (
+            r"layers.\1.mlp.up_proj.kernel",
+            ((1, 0), None),
+        ),
+        r"model\.layers\.([0-9]+)\.mlp\.down_proj\.weight": (
+            r"layers.\1.mlp.down_proj.kernel",
+            ((1, 0), None),
+        ),
+        r"model\.norm\.weight": ("final_norm.w", None),
+        # norms
+        r"model\.layers\.([0-9]+)\.self_attn\.q_norm\.weight": (
+            r"layers.\1.attn.q_norm.w",
+            None,
+        ),
+        r"model\.layers\.([0-9]+)\.self_attn\.k_norm\.weight": (
+            r"layers.\1.attn.k_norm.w",
+            None,
+        ),
+        # layer norms (pre/post attention)
+        r"model\.layers\.([0-9]+)\.input_layernorm\.weight": (
+            r"layers.\1.input_layernorm.w",
+            None,
+        ),
+        r"model\.layers\.([0-9]+)\.post_attention_layernorm\.weight": (
+            r"layers.\1.post_attention_layernorm.w",
+            None,
+        ),
+        r"model\.layers\.([0-9]+)\.pre_feedforward_layernorm\.weight": (
+            r"layers.\1.pre_feedforward_layernorm.w",
+            None,
+        ),
+        r"model\.layers\.([0-9]+)\.post_feedforward_layernorm\.weight": (
+            r"layers.\1.post_feedforward_layernorm.w",
+            None,
+        ),
+        r"lm_head\.weight": ("lm_head.w", ((1, 0), None)),
+    }
+
+
+def _torch_key_to_jax_key(mapping, source_key):
+    subs = [
+        (re.sub(pat, repl, source_key), reshape)
+        for pat, (repl, reshape) in mapping.items()
+        if re.match(pat, source_key)
+    ]
+    if len(subs) != 1:
+        raise ValueError(f"Only one key should be found: {subs[0]}")
+    else:
+        return subs[0]
+
+
+def _assign_weights(keys, tensor, state_dict, torch_key, transform):
+    """Convert weights and assign to nnx state_dict."""
+    print(f'JIYOUNHA : keys: {keys}')
+    print(f'JIYOUNHA : state_dict keys : {state_dict.keys()}')
+    print(f'JIYOUNHA : state_dict: {state_dict}')
+    key = keys[0]
+    if len(keys) == 1:
+        try:
+            if transform is not None:
+                permute, reshape = transform
+                tensor = tensor.transpose(permute) if permute else tensor
+                tensor = tensor.reshape(reshape) if reshape else tensor
+        except Exception as e:
+            raise RuntimeError(f"Failed to transform tensor {torch_key} with shape {tensor.shape}: {e}") from e
+
+        if tensor.shape != state_dict[key].shape:
+            raise ValueError(f"shape must match for {torch_key}, got {tensor.shape} vs {state_dict[key].shape}")
+        state_dict[key] = tensor
+        return state_dict
+    else:
+        if key not in state_dict:
+            raise ValueError(f"Unfound key {key} in {state_dict}")
+        _assign_weights(keys[1:], tensor, state_dict[key], torch_key, transform)
+        return state_dict
+
+
+def _stoi(s):
+    try:
+        return int(s)
+    except ValueError:
+        return s
+
+
+def create_model_from_safe_tensors(
+    file_dir: str,
+    config: model_lib.ModelConfig,
     mesh: jax.sharding.Mesh | None = None,
 ) -> model_lib.Gemma3:
-    """Load a Gemma3 model from a checkpoint."""
-    abs_model = nnx.eval_shape(lambda: model_lib.Gemma3(model_config, rngs=nnx.Rngs(0)))
-    params = ocp.StandardCheckpointer().restore(checkpoint_path)
-    params = _map_from_upstream_checkpoint(params)
+    """Load tensors from the safetensors file and create a Gemma3 model."""
+    files = list(epath.Path(file_dir).expanduser().glob("*.safetensors"))
+
+    if not files:
+        raise ValueError(f"No safetensors found in {file_dir}")
+
+    """
+    from safetensors import safe_open; import torch
+    with safe_open(files[0], framework="pt") as f:
+        for key in f.keys():
+            print(key)
+    """
+
+    tensor_dict = {}
+    for f in files:
+        tensor_dict |= safetensors.load_file(f)
+    # tensor_dict has RMSnorm.
+
+    gemma3 = nnx.eval_shape(lambda: model_lib.Gemma3(config, rngs=nnx.Rngs(params=0)))
+    # gemma3 should have RMSnorm.
+
+    graph_def, abs_state = nnx.split(gemma3)
+    # print(f'JIYOUNHA : graph_def : {graph_def}')
+    # print(f'JIYOUNHA : abs_state : {abs_state}')
+    state_dict = abs_state.to_pure_dict()
+    # print(f'JIYOUNHA: state_dict : {state_dict}')
+
+    for k, v in tensor_dict.items():
+        jax_key, transform = _torch_key_to_jax_key(_get_key_and_transform_mapping(config), k)
+        jax_keys = [_stoi(s) for s in jax_key.split(".")]
+        print(f'JIYOUNHA: jax_keys: {jax_keys}')
+        print(f'JIYOUNHA: v: {v}')
+        print(f'JIYOUNHA: k: {k}')
+        print(f'JIYOUNHA: state_dict: {state_dict}')
+        print(f'JIYOUNHA: transform: {transform}')
+        _assign_weights(jax_keys, v, state_dict, k, transform)
+
     if mesh is not None:
-        params = jax.tree.map(
-            lambda x, shd: jnp.asarray(x, device=shd),
-            params,
-            nnx.to_pure_dict(nnx.get_named_sharding(nnx.state(abs_model), mesh)),
-        )
+        sharding = nnx.get_named_sharding(abs_state, mesh).to_pure_dict()
+        state_dict = jax.device_put(state_dict, sharding)
     else:
-        params = jax.tree.map(jnp.asarray, params)
-    nnx.update(abs_model, params)
-    return abs_model
+        state_dict = jax.device_put(state_dict, jax.devices()[0])
 
-
-PROMPT_TEMPLATE = """\
-<start_of_turn>user
-{}<end_of_turn>
-<start_of_turn>model
-"""
-
-
-def create_tokenizer(
-    path: str = GEMMA3_TOKENIZER,
-) -> spm.SentencePieceProcessor:
-    spm_processor = spm.SentencePieceProcessor()
-    model_proto = epath.Path(path).read_bytes()
-    spm_processor.LoadFromSerializedProto(model_proto)
-    return spm_processor
-
-
-def _map_from_upstream_checkpoint(params):
-    """Map from upstream checkpoint to our implementation."""
-    # From:
-    #
-    # ('transformer/embedder', 'input_embedding') (262144, 1152)
-    # ('transformer/final_norm', 'scale') (1152,)
-    # ('transformer/layer_0/attn/_key_norm', 'scale') (256,)
-    # ('transformer/layer_0/attn/_query_norm', 'scale') (256,)
-    # ('transformer/layer_0/attn/attn_vec_einsum', 'w') (4, 256, 1152)
-    # ('transformer/layer_0/attn/kv_einsum', 'w') (2, 1, 1152, 256)
-    # ('transformer/layer_0/attn/q_einsum', 'w') (4, 1152, 256)
-    # ('transformer/layer_0/mlp/gating_einsum', 'w') (2, 6912, 1152)
-    # ('transformer/layer_0/mlp/linear', 'w') (6912, 1152)
-    # ('transformer/layer_0/post_attention_norm', 'scale') (1152,)
-    # ('transformer/layer_0/post_ffw_norm', 'scale') (1152,)
-    # ('transformer/layer_0/pre_attention_norm', 'scale') (1152,)
-    # ('transformer/layer_0/pre_ffw_norm', 'scale') (1152,)
-    #
-    # To:
-    #
-    # ('embedder', 'input_embedding') (262144, 1152)
-    # ('final_norm', 'scale') (1152,)
-    # ('layers', 0, 'attn', '_key_norm', 'scale') (256,)
-    # ('layers', 0, 'attn', '_query_norm', 'scale') (256,)
-    # ('layers', 0, 'attn', 'attn_vec_einsum', 'w') (4, 256, 1152)
-    # ('layers', 0, 'attn', 'kv_einsum', 'w') (2, 1, 1152, 256)
-    # ('layers', 0, 'attn', 'q_einsum', 'w') (4, 1152, 256)
-    # ('layers', 0, 'mlp', 'down_proj', 'kernel') (6912, 1152)
-    # ('layers', 0, 'mlp', 'gate_proj', 'kernel') (1152, 6912)
-    # ('layers', 0, 'mlp', 'up_proj', 'kernel') (1152, 6912)
-    # ('layers', 0, 'post_attn_norm', 'scale') (1152,)
-    # ('layers', 0, 'post_ffw_norm', 'scale') (1152,)
-    # ('layers', 0, 'pre_attention_norm', 'scale') (1152,)
-    # ('layers', 0, 'pre_ffw_norm', 'scale') (1152,)
-    new_params = {}
-    for key_path, value in flax.traverse_util.flatten_dict(params).items():
-        module_path, param_name = key_path
-        module_path = module_path.split("/")[1:]  # Remove the leading 'transformer'
-        if module_path[0] == "siglip_encoder":
-            continue  # We don't support MM input yet.
-        if module_path[0] == "embedder":
-            if len(module_path) > 1 and module_path[1].startswith("mm_"):
-                continue  # We don't support MM input yet.
-        if module_path[0] in ("embedder", "final_norm"):
-            new_params[(module_path[0], param_name)] = value
-            continue
-        # module_path should now look like ('layer_0', 'attn', '_key_norm')
-        layer_idx = ("layers", int(module_path[0].removeprefix("layer_")))
-        if module_path[1:] == ["mlp", "gating_einsum"]:
-            new_params[(*layer_idx, "mlp", "gate_proj", "kernel")] = value[0].T
-            new_params[(*layer_idx, "mlp", "up_proj", "kernel")] = value[1].T
-        elif module_path[1:] == ["mlp", "linear"]:
-            new_params[(*layer_idx, "mlp", "down_proj", "kernel")] = value
-        else:
-            new_params[(*layer_idx, *module_path[1:], param_name)] = value
-    return flax.traverse_util.unflatten_dict(new_params)
-
-
-def generate_text_with_sentencepiece(
-    prompt_text, max_length=50, sp_model=None, simulated_model=None, simulated_model_output_ids_for_test=None
-):
-    """
-    Generates text using a prompt, a SentencePiece model for tokenization,
-    and a simulated language model.
-
-    Args:
-        prompt_text (str): The initial text to start generation.
-        max_length (int): Maximum number of tokens to generate.
-        sp_model (sentencepiece.SentencePieceProcessor): The loaded SentencePiece model.
-        simulated_model (function): A function that takes token IDs and returns
-                                    a prediction for the next token's probability distribution
-                                    (or just the next token ID in our simple case).
-    Returns:
-        str: The generated text.
-    """
-    if sp_model is None:
-        raise ValueError("SentencePiece model (sp_model) must be provided.")
-    if simulated_model is None:
-        raise ValueError("Simulated model (simulated_model) must be provided.")
-
-    # Encode the prompt text into token IDs
-    input_ids = sp_model.encode_as_ids(prompt_text)
-    print(f"\nPrompt '{prompt_text}' encoded to IDs: {input_ids}")
-
-    generated_ids = list(input_ids)  # Start with the prompt IDs
-
-    # Simulate token generation
-    for _ in range(max_length):
-        # In a real model, you'd pass `generated_ids` to your neural network
-        # and get a probability distribution over the vocabulary for the next token.
-        # Then you'd sample from that distribution (e.g., greedy, top-k, nucleus sampling).
-
-        # Our simulated model simply returns the next ID from its fixed sequence
-        # or a special "end of sequence" token if it runs out.
-        if len(generated_ids) - len(input_ids) < len(simulated_model_output_ids_for_test):
-            next_token_id = simulated_model_output_ids_for_test[len(generated_ids) - len(input_ids)]
-        else:
-            # Simulate an end-of-sequence token or just stop
-            print("Simulated model reached end of its fixed output.")
-            break
-
-        generated_ids.append(next_token_id)
-        # Optional: Print current generation state
-        # print(f"  Generated ID: {next_token_id}, Current sequence: {sp_model.decode_ids(generated_ids)}")
-
-    # Decode the complete sequence of generated IDs back to text
-    full_generated_text = sp_model.decode_ids(generated_ids)
-    return full_generated_text
+    return nnx.merge(graph_def, state_dict)
