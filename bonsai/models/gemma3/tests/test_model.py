@@ -81,14 +81,12 @@ def test_model_generation(model_name: str, local_cache_path: Path = "/tmp/models
         # Initialize the Sampler
         # CacheConfig parameters often depend on specific model architecture details
         # (e.g., number of layers, KV heads, head dimension).
-        model_sampler = sampler.Sampler(
-            tokenizer,
-            sampler.KVCacheConfig(cache_size=256, num_layers=26, num_kv_heads=1, head_dim=256),
-            temperature=0.7,
-            top_p=0.9,
-        )
+        model_sampler = sampler.Sampler(model, tokenizer, sampler.KVCacheConfig(cache_size=256, num_layers=26, num_kv_heads=1, head_dim=256))
 
-        generated_output = model_sampler(model, input_prompts, total_generation_steps=128, echo=True)
+        # warm up
+        print(f'Warming up XLA compiler...')
+        _ = model_sampler(input_prompts, total_generation_steps=128, echo=True, temperature=0.7, top_p=0.9)
+        generated_output = model_sampler(input_prompts, total_generation_steps=128, echo=True, temperature=0.7, top_p=0.9)
         if show_output:
             print("\n--- Generated Outputs ---")
             for t in generated_output.text:
