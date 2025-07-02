@@ -16,6 +16,7 @@
 
 import dataclasses
 from typing import Tuple
+from functools import partial
 
 import flax
 import jax
@@ -28,7 +29,7 @@ from jax.interpreters import pxla
 K_MASK = -2.3819763e38
 
 LayerCache = dict[str, jaxtyping.Array]
-Cache = dict[str, LayerCache]
+Cache = list[str, LayerCache]
 
 
 @dataclasses.dataclass(slots=True, frozen=True)
@@ -78,6 +79,8 @@ class ModelConfig:
     head_dim: int
     num_kv_heads: int
     rope_theta: int
+    rope_scaling_factor: int
+    local_rope_theta: float
     norm_eps: float
     shd_config: ShardingConfig = ShardingConfig.get_default_sharding()
 
@@ -93,6 +96,8 @@ class ModelConfig:
             num_kv_heads=8,
             norm_eps=1e-06,
             rope_theta=1_000_000,
+            rope_scaling_factor=8.0,
+            local_rope_theta=1e4,
         )
 
     @classmethod
@@ -107,6 +112,8 @@ class ModelConfig:
             num_kv_heads=8,
             norm_eps=1e-06,
             rope_theta=1_000_000,
+            rope_scaling_factor=8.0,
+            local_rope_theta=1e4,
         )
 
     @classmethod
@@ -121,6 +128,8 @@ class ModelConfig:
             num_kv_heads=8,
             norm_eps=1e-06,
             rope_theta=1_000_000,
+            rope_scaling_factor=8.0,
+            local_rope_theta=1e4,
         )
 
 
@@ -485,8 +494,11 @@ class Qwen3(nnx.Module):
             sharding=shd_config.emb_dv,
         )
 
+    # consider having wrapper f(n) for forward;
+    # @partial(jax.jit, static_argnums=(0, 5))
+    # jaxlib._jax.XlaRuntimeError: INTERNAL: Failed to allocate 311164928 bytes for new constant
     def __call__(
-        self,
+        self,  # self is static... 
         input_tokens: jaxtyping.Array,  # [B, L]
         positions: jaxtyping.Array,  # [B, L]
         cache: Cache | None,  # (sequence length L')
@@ -512,8 +524,7 @@ class Qwen3(nnx.Module):
         x = self.embedder.encode(input_tokens)
 
         for i, layer in enumerate(self.layers):
-            layer_name = f"layer_{i}"
-            layer_cache = cache[layer_name] if cache else None
+            layer_cache = cache[i] if cache else None
             layer_cache, x = layer(
                 x,
                 positions,
@@ -521,7 +532,7 @@ class Qwen3(nnx.Module):
                 attention_mask,
             )
             if cache is not None:
-                new_cache[layer_name] = layer_cache  # pytype: disable=container-type-mismatch
+                new_cache[i] = layer_cache  # pytype: disable=container-type-mismatch
 
         x = self.final_norm(x)
         if output_hidden_states:
